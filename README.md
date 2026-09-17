@@ -51,10 +51,31 @@ php spark migrate --all
 php spark db:seed InitialUsersSeeder
 ```
 
+`InitialUsersSeeder` creates `admin` (12-char random password) and
+`counter1`–`counter10` (6-digit random PIN), each printed to the console
+**once** — copy them down immediately, they aren't stored anywhere in
+plaintext. Re-running the seeder is safe; it skips any username that
+already exists rather than resetting it.
+
+For a quick demo with realistic test data (10 companies, 2 members each,
+matching the HTML prototype's dataset), also run:
+
+```bash
+php spark db:seed MasterDataSeeder
+```
+
 Run it:
 
 ```bash
 php spark serve
+```
+
+Add a daily cron job for cleanup of abandoned preview uploads (an admin
+uploads an Excel/photo zip for preview, then never confirms it — nothing
+else removes that temp file):
+
+```
+0 3 * * * cd /path/to/app && php spark uploads:clean-tmp
 ```
 
 ## Architecture
@@ -74,6 +95,25 @@ package — the surface is deliberately small):
 - **admin** — full access: master data import, voter log, dashboard.
 - **operator** — assigned to exactly one counter (`users.assigned_counter`),
   can only use the counter scan/issue screen and reprint slips.
+
+### Hardware integration
+
+- **Zebra RFID reader**: configured in USB/Bluetooth **keyboard-wedge (HID)
+  mode** — it types the tag ID as keystrokes into whatever input has focus,
+  followed by Enter. No SDK/driver integration on our side; the counter
+  screen just keeps `#rfidInput` focused at all times (refocus on any click,
+  on window refocus, and a periodic safety-net check) and listens for Enter.
+  If a reader ships configured for a different suffix (Tab instead of
+  Enter) or a prefix character, that's a one-line change in
+  `app/Views/counter/index.php`'s keydown handler.
+- **Thermal slip printer**: the browser's native print dialog (`window.print()`
+  on issue, or the "Print / Choose Printer" button on `/slip/{serial}`) is
+  the printer integration — whatever printer is set up in the OS (thermal,
+  laser, or "save as PDF") just works, no vendor SDK needed. The print CSS
+  (`@media print` in `assets/css/app.css`) is tuned for an 80mm thermal
+  roll (`@page { size: 80mm auto; }`, slip width capped at 74mm, QR sized
+  for a small paper width) — for a different roll width, adjust those two
+  numbers.
 
 ### Core flow (`/counter`)
 
@@ -109,6 +149,15 @@ is meant to be scanned by hall-entry staff on their own phones.
 - **Voter log** — search/filter by counter/status, void a wrongly-issued
   slip with a reason, CSV export.
 - **Dashboard** — turnout stats, votes per counter, companies pending.
+
+## Branding
+
+Every page shows a top-left "FK" brand mark and a "Powered by: World Vision
+Softek" footer (`app/Views/partials/footer.php`). The brand mark is a text
+placeholder (`.brand-mark` in `assets/css/app.css`) — no actual FKCCI logo
+file was provided. Swap it for a real `<img>` once you have the logo asset;
+everywhere it's used pulls from the same CSS class, so it's a one-place
+change.
 
 ## Directory notes
 

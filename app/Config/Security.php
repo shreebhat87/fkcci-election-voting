@@ -14,8 +14,13 @@ class Security extends BaseConfig
      * Protection Method for Cross Site Request Forgery protection.
      *
      * @var string 'cookie' or 'session'
+     *
+     * 'session', not the CI4 default 'cookie': CI4's CSRF cookie is
+     * HttpOnly by default, which JS can never read — breaking every AJAX
+     * POST from the counter/admin screens. Session-based CSRF lets the
+     * token be rendered into a <meta> tag instead and read from there.
      */
-    public string $csrfProtection = 'cookie';
+    public string $csrfProtection = 'session';
 
     /**
      * --------------------------------------------------------------------------
@@ -70,8 +75,13 @@ class Security extends BaseConfig
      * --------------------------------------------------------------------------
      *
      * Regenerate CSRF Token on every submission.
+     *
+     * false, not the CI4 default true: the counter screen fires many
+     * sequential AJAX POSTs per login session (one per scan, over hours),
+     * not one form submit per page load — regenerating would invalidate
+     * the token the page already has after the very first request.
      */
-    public bool $regenerate = true;
+    public bool $regenerate = false;
 
     /**
      * --------------------------------------------------------------------------

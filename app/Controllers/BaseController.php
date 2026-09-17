@@ -25,21 +25,34 @@ abstract class BaseController extends Controller
      * The creation of dynamic property is deprecated in PHP 8.2.
      */
 
-    // protected $session;
+    protected $session;
 
     /**
      * @return void
      */
     public function initController(RequestInterface $request, ResponseInterface $response, LoggerInterface $logger)
     {
-        // Load here all helpers you want to be available in your controllers that extend BaseController.
-        // Caution: Do not put the this below the parent::initController() call below.
-        // $this->helpers = ['form', 'url'];
+        $this->helpers = ['form', 'url', 'app'];
 
         // Caution: Do not edit this line.
         parent::initController($request, $response, $logger);
 
-        // Preload any models, libraries, etc, here.
-        // $this->session = service('session');
+        $this->session = service('session');
+    }
+
+    /** Currently logged-in user's session data, or null if not signed in. */
+    protected function currentUser(): ?array
+    {
+        if (! $this->session->get('user_id')) {
+            return null;
+        }
+
+        return [
+            'id' => $this->session->get('user_id'),
+            'username' => $this->session->get('username'),
+            'role' => $this->session->get('role'),
+            'name' => $this->session->get('name'),
+            'assigned_counter' => $this->session->get('assigned_counter'),
+        ];
     }
 }
