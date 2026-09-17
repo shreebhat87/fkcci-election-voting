@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — FKCCI Election Voting Slip System</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="proto-banner">🧪 <strong>Interactive Prototype</strong> — mock data only. <a href="index.html">← Back to login</a></div>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="admin-dashboard.html">
+        <div class="brand-mark">FK</div>
+        <div class="brand-text">
+          <div class="title">FKCCI Election 2026</div>
+          <div class="subtitle">Admin Console</div>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="admin-dashboard.html" class="active">Dashboard</a>
+        <a href="admin-upload.html">Master Data</a>
+        <a href="admin-log.html">Voter Log</a>
+      </nav>
+      <div class="session-chip">
+        <div class="avatar avatar-sm" style="background:var(--gold-500); color:var(--navy-900);">AD</div>
+        <span>Election Admin</span>
+        <a href="index.html">Sign out</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+      <div class="flex-between mb-24">
+        <div>
+          <h2 style="font-size:20px;">Election Day Overview</h2>
+          <p id="electionMeta" style="font-size:13px;"></p>
+        </div>
+        <button class="btn btn-outline" onclick="doReset()">↺ Reset demo data</button>
+      </div>
+
+      <div class="stat-grid mb-24" id="statGrid"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>Votes Issued per Counter</h3>
+            <span class="card-muted-label">Live</span>
+          </div>
+          <div id="counterBars"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>Companies Pending</h3></div>
+          <p style="font-size:13px;">Companies where neither designated representative has voted yet.</p>
+          <div id="pendingCompanies"></div>
+        </div>
+      </div>
+
+      <div class="card mt-24">
+        <div class="card-header">
+          <h3>Recent Activity — All Counters</h3>
+          <a href="admin-log.html" style="font-size:13px; font-weight:600;">View full voter log →</a>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Slip No.</th><th>Member</th><th>Company</th><th>Counter</th><th>Time</th><th></th></tr>
+          </thead>
+          <tbody id="activityBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script>
+document.getElementById("electionMeta").textContent = `${FKCCI.ELECTION_NAME} · ${new Date(FKCCI.ELECTION_DATE).toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"})} · 10 counters active`;
+
+function render() {
+  const stats = FKCCI.getStats();
+
+  document.getElementById("statGrid").innerHTML = `
+    <div class="stat-tile accent-navy">
+      <div class="stat-label">Total Eligible Members</div>
+      <div class="stat-value">${stats.totalMembers}</div>
+      <div class="stat-sub">Across ${stats.totalCompanies} companies (2 reps each)</div>
+    </div>
+    <div class="stat-tile accent-gold">
+      <div class="stat-label">Votes Cast</div>
+      <div class="stat-value">${stats.votesCast}</div>
+      <div class="stat-sub">Voting slips issued so far</div>
+    </div>
+    <div class="stat-tile accent-success">
+      <div class="stat-label">Companies Represented</div>
+      <div class="stat-value">${stats.votedCompanies} / ${stats.totalCompanies}</div>
+      <div class="stat-sub">${stats.turnoutPct}% turnout</div>
+    </div>
+    <div class="stat-tile accent-danger">
+      <div class="stat-label">Companies Pending</div>
+      <div class="stat-value">${stats.pendingCompanies}</div>
+      <div class="stat-sub">Have not voted yet</div>
+    </div>
+  `;
+
+  const maxVal = Math.max(1, ...FKCCI.COUNTERS.map(c => stats.perCounter[c] || 0));
+  document.getElementById("counterBars").innerHTML = FKCCI.COUNTERS.map(c => {
+    const v = stats.perCounter[c] || 0;
+    const pct = Math.round((v / maxVal) * 100);
+    return `
+      <div class="bar-row">
+        <div class="bar-label">Counter ${c}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;"></div></div>
+        <div class="bar-value">${v}</div>
+      </div>`;
+  }).join("");
+
+  const votedSet = new Set(FKCCI.getAllVotes().filter(v => v.status === "issued").map(v => v.company));
+  const pending = FKCCI.COMPANIES.filter(c => !votedSet.has(c));
+  document.getElementById("pendingCompanies").innerHTML = pending.length
+    ? pending.map(c => `<div class="flex-between" style="padding:7px 0; border-bottom:1px solid var(--border); font-size:13px;">
+         <span>${c}</span><span class="badge badge-warning">Pending</span></div>`).join("")
+    : `<p class="text-muted" style="font-size:13px;">All companies represented.</p>`;
+
+  const recent = FKCCI.getAllVotes().slice(0, 8);
+  document.getElementById("activityBody").innerHTML = recent.length
+    ? recent.map(v => `
+        <tr>
+          <td style="font-family:monospace; font-size:12px;">${v.serial}</td>
+          <td>${v.name}</td>
+          <td>${v.company}</td>
+          <td>Counter ${v.counter}</td>
+          <td>${FKCCI.timeAgo(v.timestamp)}</td>
+          <td>${v.status === "issued"
+            ? `<a href="slip.html?serial=${encodeURIComponent(v.serial)}" target="_blank" rel="noopener" style="font-size:12px; font-weight:600;">Print</a>`
+            : `<span class="badge badge-danger">Void</span>`}</td>
+        </tr>`).join("")
+    : `<tr><td colspan="6" class="text-muted">No votes recorded yet.</td></tr>`;
+}
+
+function doReset() {
+  if (confirm("Reset all demo vote data back to the seeded starting state?")) {
+    FKCCI.resetDemoData();
+    render();
+  }
+}
+
+render();
+</script>
+</body>
+</html>

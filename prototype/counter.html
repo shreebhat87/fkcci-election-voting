@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Counter Terminal — FKCCI Election Voting Slip System</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="proto-banner no-print">
+    🧪 <strong>Interactive Prototype</strong> — RFID scans are simulated. In production the Zebra reader (keyboard-wedge mode) types the tag ID directly into the scan field below. <a href="index.html">← Back to login</a>
+  </div>
+
+  <header class="topbar no-print">
+    <div class="container topbar-inner">
+      <a class="brand" href="index.html">
+        <div class="brand-mark">FK</div>
+        <div class="brand-text">
+          <div class="title">FKCCI Election 2026</div>
+          <div class="subtitle">Counter Terminal</div>
+        </div>
+      </a>
+      <div class="session-chip">
+        <span class="dot"></span>
+        <span id="counterLabel">Counter 3</span>
+        <span style="color:#8592a3;">·</span>
+        <span id="clock">--:--</span>
+        <a href="index.html">Sign out</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+
+      <div class="stat-grid mb-24" style="grid-template-columns: repeat(3,1fr);">
+        <div class="stat-tile accent-navy">
+          <div class="stat-label">Votes Issued (This Counter)</div>
+          <div class="stat-value" id="counterVotes">0</div>
+        </div>
+        <div class="stat-tile accent-gold">
+          <div class="stat-label">Total Votes Cast (All Counters)</div>
+          <div class="stat-value" id="totalVotes">0</div>
+        </div>
+        <div class="stat-tile accent-success">
+          <div class="stat-label">Companies Represented</div>
+          <div class="stat-value"><span id="votedCompanies">0</span><span class="text-muted" style="font-size:16px;"> / <span id="totalCompanies">10</span></span></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="card mb-24" id="scanCard">
+            <div class="card-header">
+              <h2>Scan Voter's RFID Card</h2>
+              <span class="badge badge-neutral">Zebra RFID Reader</span>
+            </div>
+
+            <div class="scan-zone" id="scanZone">
+              <div class="scan-icon">📡</div>
+              <h3 id="scanZoneTitle">Ready to scan</h3>
+              <p>Tap the member's RFID card on the reader, or it will be read automatically in keyboard-wedge mode.</p>
+              <input type="text" id="rfidInput" placeholder="Waiting for card scan…" autocomplete="off" autofocus>
+              <div class="quick-sim no-print">
+                <span class="chip" onclick="simulateScan('E2000003019A7B0014')">▶ Simulate: Eligible voter</span>
+                <span class="chip" onclick="simulateScan('E2000001029A7B0001')">▶ Simulate: Already-voted company</span>
+                <span class="chip" onclick="simulateScan('E200999909A7B9999')">▶ Simulate: Unknown card</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card hidden" id="resultCard">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Recent Activity — This Counter</h3>
+            </div>
+            <div id="recentList"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Already-voted modal -->
+<div class="modal-backdrop hidden no-print" id="votedModal">
+  <div class="modal">
+    <div class="icon-circle danger">🚫</div>
+    <h3>Vote Already Cast</h3>
+    <p>Only one voting slip is allowed per company. A representative of this company has already voted.</p>
+    <div class="modal-details" id="votedDetails"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-block" onclick="closeVotedModal()">Acknowledge — No Slip Issued</button>
+    </div>
+  </div>
+</div>
+
+<!-- Unknown card modal -->
+<div class="modal-backdrop hidden no-print" id="unknownModal">
+  <div class="modal">
+    <div class="icon-circle warning">⚠️</div>
+    <h3>Card Not Recognized</h3>
+    <p>This RFID tag was not found in the master voter list. Please verify the card, or send the member to the election admin desk.</p>
+    <div class="modal-details"><div><span class="k">Scanned tag</span><span class="v" id="unknownTag">—</span></div></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-block" onclick="closeUnknownModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print area -->
+<div id="printArea" class="hidden">
+  <div class="slip" id="slipTemplate"></div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/qr.js"></script>
+<script src="assets/js/photo.js"></script>
+<script>
+const counterNo = localStorage.getItem("fkcci_active_counter") || "3";
+document.getElementById("counterLabel").textContent = "Counter " + counterNo;
+
+function tickClock() {
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+tickClock();
+setInterval(tickClock, 15000);
+
+function refreshStats() {
+  const stats = FKCCI.getStats();
+  document.getElementById("totalVotes").textContent = stats.votesCast;
+  document.getElementById("votedCompanies").textContent = stats.votedCompanies;
+  document.getElementById("totalCompanies").textContent = stats.totalCompanies;
+  document.getElementById("counterVotes").textContent = stats.perCounter[counterNo] || 0;
+}
+
+function renderRecent() {
+  const votes = FKCCI.getAllVotes().filter(v => String(v.counter) === String(counterNo)).slice(0, 6);
+  const wrap = document.getElementById("recentList");
+  if (!votes.length) {
+    wrap.innerHTML = '<p class="text-muted" style="font-size:13px;">No slips issued yet at this counter.</p>';
+    return;
+  }
+  wrap.innerHTML = votes.map(v => `
+    <div class="flex-between" style="padding:10px 0; border-bottom:1px solid var(--border);">
+      <div class="flex gap-12" style="align-items:center;">
+        <div class="avatar avatar-sm" style="background:${FKCCI.findMemberById(v.memberId)?.color || '#1d4e89'}">${FKCCI.findMemberById(v.memberId)?.initials || '??'}</div>
+        <div>
+          <div style="font-weight:700; font-size:13px;">${v.name}</div>
+          <div class="text-muted" style="font-size:11.5px;">${v.company}${v.status === "void" ? ' · <span style="color:var(--danger-600);">Void</span>' : ""}</div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div class="text-muted" style="font-size:11.5px;">${FKCCI.timeAgo(v.timestamp)}</div>
+        <a href="slip.html?serial=${encodeURIComponent(v.serial)}" target="_blank" rel="noopener" style="font-size:11.5px; font-weight:600;">View / Print ↗</a>
+      </div>
+    </div>
+  `).join("");
+}
+
+function showToast(msg) {
+  const wrap = document.getElementById("toastWrap");
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `<span class="dot-ok">●</span> ${msg}`;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3800);
+}
+
+function resetScanZone() {
+  document.getElementById("resultCard").classList.add("hidden");
+  document.getElementById("resultCard").innerHTML = "";
+  document.getElementById("scanZone").classList.remove("is-active");
+  document.getElementById("scanZoneTitle").textContent = "Ready to scan";
+  const input = document.getElementById("rfidInput");
+  input.value = "";
+  input.disabled = false;
+  input.focus();
+}
+
+function handleScan(rfid) {
+  document.getElementById("scanZone").classList.add("is-active");
+  document.getElementById("scanZoneTitle").textContent = "Card read — looking up member…";
+  document.getElementById("rfidInput").disabled = true;
+
+  setTimeout(() => {
+    const member = FKCCI.findMemberByRFID(rfid);
+    if (!member) {
+      document.getElementById("unknownTag").textContent = rfid;
+      document.getElementById("unknownModal").classList.remove("hidden");
+      resetScanZone();
+      return;
+    }
+    const existingVote = FKCCI.getCompanyVoteRecord(member.company);
+    if (existingVote) {
+      document.getElementById("votedDetails").innerHTML = `
+        <div><span class="k">Company</span><span class="v">${member.company}</span></div>
+        <div><span class="k">Voted by</span><span class="v">${existingVote.name}</span></div>
+        <div><span class="k">Slip No.</span><span class="v">${existingVote.serial}</span></div>
+        <div><span class="k">Counter</span><span class="v">Counter ${existingVote.counter}</span></div>
+        <div><span class="k">Time</span><span class="v">${FKCCI.formatTime(existingVote.timestamp)}</span></div>
+      `;
+      document.getElementById("votedModal").classList.remove("hidden");
+      resetScanZone();
+      return;
+    }
+    renderEligible(member);
+  }, 550);
+}
+
+function renderEligible(member) {
+  document.getElementById("scanZone").classList.remove("is-active");
+  const card = document.getElementById("resultCard");
+  card.classList.remove("hidden");
+  card.innerHTML = `
+    <div class="card-header">
+      <h3>Member Verified</h3>
+      <span class="badge badge-success">✓ Eligible to Vote</span>
+    </div>
+    <div class="member-result">
+      ${member.hasPhoto
+        ? `<div class="photo-avatar avatar-lg"><canvas id="eligiblePhoto"></canvas></div>`
+        : `<div class="avatar avatar-lg" style="background:${member.color}">${member.initials}</div>`}
+      <div class="info">
+        <h3>${member.name}</h3>
+        <p>${member.designation} · ${member.company}</p>
+        ${!member.hasPhoto ? `<p class="no-photo-note">📷 No photo on file — verify identity against the physical card.</p>` : ""}
+        <div class="meta-row">
+          <div class="meta-item"><span class="label">Member ID</span><strong>${member.memberId}</strong></div>
+          <div class="meta-item"><span class="label">RFID Tag</span><strong>${member.rfid}</strong></div>
+          <div class="meta-item"><span class="label">Mobile</span><strong>${member.mobile}</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-12 mt-16 no-print">
+      <button class="btn btn-success btn-lg" style="flex:1;" onclick="issueSlip('${member.rfid}')">🖨️ Print Voting Slip</button>
+      <button class="btn btn-outline btn-lg" onclick="resetScanZone()">Cancel</button>
+    </div>
+  `;
+  if (member.hasPhoto) renderPersonPhoto(document.getElementById("eligiblePhoto"), member.memberId, 84);
+  document.getElementById("scanZoneTitle").textContent = "Ready to scan";
+  document.getElementById("rfidInput").disabled = false;
+  document.getElementById("rfidInput").value = "";
+}
+
+function issueSlip(rfid) {
+  const member = FKCCI.findMemberByRFID(rfid);
+  if (!member) return;
+  // Re-check at issue time to guard against a race with another counter.
+  const existingVote = FKCCI.getCompanyVoteRecord(member.company);
+  if (existingVote) {
+    resetScanZone();
+    handleScan(rfid); // will now show the "already voted" modal
+    return;
+  }
+  const record = FKCCI.issueVote(member, counterNo);
+  buildSlip(record);
+  window.print();
+  showToast(`Slip ${record.serial} issued for ${record.name} (${record.company})`);
+  refreshStats();
+  renderRecent();
+  showIssuedConfirmation(record);
+}
+
+function showIssuedConfirmation(record) {
+  document.getElementById("scanZone").classList.remove("is-active");
+  document.getElementById("scanZoneTitle").textContent = "Slip issued — ready for next voter";
+  const input = document.getElementById("rfidInput");
+  input.value = "";
+  input.disabled = true;
+
+  const card = document.getElementById("resultCard");
+  card.classList.remove("hidden");
+  card.innerHTML = `
+    <div class="card-header">
+      <h3>Slip Issued</h3>
+      <span class="badge badge-success">✓ Sent to Printer</span>
+    </div>
+    <div class="alert alert-success">
+      <div class="alert-icon">✅</div>
+      <div>
+        <h4>${record.name} — ${record.company}</h4>
+        <p>Slip <strong>${record.serial}</strong> issued at Counter ${record.counter}, ${FKCCI.formatTime(record.timestamp)}.</p>
+      </div>
+    </div>
+    <p class="hint mt-8">Printer offline, wrong tray, or need a different printer? Reopen the slip below — it can be viewed on screen or reprinted to any connected printer without rescanning the card (the vote is already recorded).</p>
+    <div class="flex gap-12 mt-16 no-print">
+      <a class="btn btn-outline btn-lg" style="flex:1;" href="slip.html?serial=${encodeURIComponent(record.serial)}" target="_blank" rel="noopener">🖨️ View / Print Again</a>
+      <button class="btn btn-primary btn-lg" style="flex:1;" onclick="resetScanZone()">➡ Next Voter</button>
+    </div>
+  `;
+}
+
+function buildSlip(record) {
+  const el = document.getElementById("slipTemplate");
+  el.innerHTML = `
+    <div class="slip-header">
+      <div class="org">Federation of Karnataka Chambers of Commerce &amp; Industry</div>
+      <div class="title">OFFICIAL VOTING SLIP</div>
+      <div class="election">${FKCCI.ELECTION_NAME}</div>
+    </div>
+    <div class="slip-row"><span class="k">Member ID</span><span class="v">${record.memberId}</span></div>
+    <div class="slip-row"><span class="k">Name</span><span class="v">${record.name}</span></div>
+    <div class="slip-row"><span class="k">Company</span><span class="v">${record.company}</span></div>
+    <div class="slip-row"><span class="k">Designation</span><span class="v">${record.designation}</span></div>
+    <div class="slip-qr"><canvas id="slipQr"></canvas></div>
+    <div class="slip-serial">${record.serial}</div>
+    <div class="slip-row mt-8"><span class="k">Counter</span><span class="v">Counter ${record.counter}</span></div>
+    <div class="slip-row"><span class="k">Issued</span><span class="v">${FKCCI.formatTime(record.timestamp)}</span></div>
+    <div class="slip-footer">Present this slip at the polling booth. Non-transferable. One slip per company.</div>
+  `;
+  const canvas = document.getElementById("slipQr");
+  renderPseudoQR(canvas, "verify.html?slip=" + encodeURIComponent(record.serial), 150);
+}
+
+function simulateScan(rfid) {
+  document.getElementById("rfidInput").value = rfid;
+  handleScan(rfid);
+}
+
+document.getElementById("rfidInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.value.trim()) {
+    handleScan(e.target.value.trim());
+  }
+});
+
+function closeVotedModal() { document.getElementById("votedModal").classList.add("hidden"); }
+function closeUnknownModal() { document.getElementById("unknownModal").classList.add("hidden"); }
+
+refreshStats();
+renderRecent();
+</script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voter Log — FKCCI Election Voting Slip System</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="proto-banner">🧪 <strong>Interactive Prototype</strong> — mock data only. <a href="index.html">← Back to login</a></div>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="admin-dashboard.html">
+        <div class="brand-mark">FK</div>
+        <div class="brand-text">
+          <div class="title">FKCCI Election 2026</div>
+          <div class="subtitle">Admin Console</div>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="admin-dashboard.html">Dashboard</a>
+        <a href="admin-upload.html">Master Data</a>
+        <a href="admin-log.html" class="active">Voter Log</a>
+      </nav>
+      <div class="session-chip">
+        <div class="avatar avatar-sm" style="background:var(--gold-500); color:var(--navy-900);">AD</div>
+        <span>Election Admin</span>
+        <a href="index.html">Sign out</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+      <div class="flex-between mb-16">
+        <h2 style="font-size:20px;">Voter Log</h2>
+        <button class="btn btn-outline" onclick="exportCsv()">⬇ Export CSV</button>
+      </div>
+
+      <div class="card mb-24">
+        <div class="field-row">
+          <div class="field">
+            <label for="searchBox">Search</label>
+            <input type="search" id="searchBox" placeholder="Search name, company, member ID, slip no…" oninput="render()">
+          </div>
+          <div class="field">
+            <label for="counterFilter">Counter</label>
+            <select id="counterFilter" onchange="render()">
+              <option value="">All counters</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter" onchange="render()">
+              <option value="">All</option>
+              <option value="issued">Issued</option>
+              <option value="void">Void</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3><span id="resultCount">0</span> slips</h3>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Slip No.</th><th>Member</th><th>Company</th><th>Counter</th><th>Time</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Void modal -->
+<div class="modal-backdrop hidden" id="voidModal">
+  <div class="modal">
+    <div class="icon-circle warning">🗑️</div>
+    <h3>Void Voting Slip</h3>
+    <p id="voidSlipInfo"></p>
+    <div class="field mt-16" style="text-align:left;">
+      <label for="voidReason">Reason for voiding</label>
+      <select id="voidReason">
+        <option>Issued in error</option>
+        <option>Duplicate scan</option>
+        <option>Member disputed identity</option>
+        <option>Printer/system fault — reissued</option>
+        <option>Other (specify in log)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeVoidModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmVoid()">Void Slip</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script>
+let voidTargetSerial = null;
+
+const counterFilter = document.getElementById("counterFilter");
+FKCCI.COUNTERS.forEach(c => {
+  const opt = document.createElement("option");
+  opt.value = c; opt.textContent = "Counter " + c;
+  counterFilter.appendChild(opt);
+});
+
+function render() {
+  const q = document.getElementById("searchBox").value.trim().toLowerCase();
+  const counter = document.getElementById("counterFilter").value;
+  const status = document.getElementById("statusFilter").value;
+
+  let votes = FKCCI.getAllVotes();
+  if (counter) votes = votes.filter(v => String(v.counter) === String(counter));
+  if (status) votes = votes.filter(v => v.status === status);
+  if (q) {
+    votes = votes.filter(v =>
+      v.name.toLowerCase().includes(q) ||
+      v.company.toLowerCase().includes(q) ||
+      v.memberId.toLowerCase().includes(q) ||
+      v.serial.toLowerCase().includes(q)
+    );
+  }
+
+  document.getElementById("resultCount").textContent = votes.length;
+  document.getElementById("logBody").innerHTML = votes.length ? votes.map(v => `
+    <tr>
+      <td style="font-family:monospace; font-size:12px;">${v.serial}</td>
+      <td>${v.name}<div class="text-muted" style="font-size:11.5px;">${v.memberId}</div></td>
+      <td>${v.company}</td>
+      <td>Counter ${v.counter}</td>
+      <td>${FKCCI.formatTime(v.timestamp)}</td>
+      <td>${v.status === "issued" ? '<span class="badge badge-success">Issued</span>' : '<span class="badge badge-danger">Void</span>'}</td>
+      <td>
+        ${v.status === "issued"
+          ? `<a href="slip.html?serial=${encodeURIComponent(v.serial)}" target="_blank" rel="noopener" style="font-size:12px; font-weight:600; margin-right:12px;">Print</a><button class="btn btn-ghost" style="padding:6px 10px; font-size:12px;" onclick="openVoidModal('${v.serial}')">Void</button>`
+          : `<a href="verify.html?slip=${encodeURIComponent(v.serial)}" style="font-size:12px;">Verify</a>`}
+      </td>
+    </tr>
+  `).join("") : `<tr><td colspan="7" class="text-muted text-center">No matching slips.</td></tr>`;
+}
+
+function openVoidModal(serial) {
+  voidTargetSerial = serial;
+  const v = FKCCI.findVoteBySerial(serial);
+  document.getElementById("voidSlipInfo").textContent = `${v.name} — ${v.company} — Slip ${v.serial}`;
+  document.getElementById("voidModal").classList.remove("hidden");
+}
+function closeVoidModal() {
+  document.getElementById("voidModal").classList.add("hidden");
+  voidTargetSerial = null;
+}
+function confirmVoid() {
+  if (!voidTargetSerial) return;
+  FKCCI.voidVote(voidTargetSerial, document.getElementById("voidReason").value);
+  closeVoidModal();
+  render();
+}
+
+function exportCsv() {
+  const votes = FKCCI.getAllVotes();
+  const rows = [["Slip No", "Member ID", "Name", "Company", "Designation", "Counter", "Timestamp", "Status"]];
+  votes.forEach(v => rows.push([v.serial, v.memberId, v.name, v.company, v.designation, v.counter, new Date(v.timestamp).toISOString(), v.status]));
+  const csv = rows.map(r => r.map(f => `"${String(f).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "fkcci-voter-log.csv";
+  a.click();
+}
+
+render();
+</script>
+</body>
+</html>

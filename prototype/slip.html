@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voting Slip — FKCCI Election Voting Slip System</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+<style>
+  .slip-page-wrap { max-width: 520px; margin: 0 auto; padding: 24px 16px 56px; }
+  .slip-stage { background: #eef2f8; border-radius: var(--radius-lg); padding: 28px 16px; display: flex; justify-content: center; }
+</style>
+</head>
+<body>
+<div class="proto-banner no-print">🧪 <strong>Interactive Prototype</strong> — mock data only. <a href="index.html">← Back to login</a></div>
+
+<header class="topbar no-print">
+  <div class="container topbar-inner">
+    <a class="brand" href="#" onclick="goBack(); return false;">
+      <div class="brand-mark">FK</div>
+      <div class="brand-text">
+        <div class="title">FKCCI Election 2026</div>
+        <div class="subtitle">Voting Slip</div>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a href="#" onclick="goBack(); return false;">← Back</a>
+    </div>
+  </div>
+</header>
+
+<main class="slip-page-wrap">
+  <div id="content"></div>
+</main>
+
+<div class="toast-wrap no-print" id="toastWrap"></div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/qr.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const serial = params.get("serial");
+const record = serial ? FKCCI.findVoteBySerial(serial) : null;
+
+function goBack() {
+  if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) {
+    window.history.back();
+  } else {
+    window.location.href = "index.html";
+  }
+}
+
+function showToast(msg) {
+  const wrap = document.getElementById("toastWrap");
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `<span class="dot-ok">●</span> ${msg}`;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function renderNotFound() {
+  document.getElementById("content").innerHTML = `
+    <div class="card text-center">
+      <div style="font-size:40px; margin-bottom:10px;">🔍</div>
+      <h2>Slip Not Found</h2>
+      <p>No voting slip matches serial <strong>${serial || "(none given)"}</strong>. It may not exist, or the link is incorrect.</p>
+      <a class="btn btn-primary mt-16" href="index.html">← Back to login</a>
+    </div>`;
+}
+
+function renderSlip() {
+  const isVoid = record.status === "void";
+
+  document.getElementById("content").innerHTML = `
+    <div class="card-header no-print" style="margin-bottom:16px;">
+      <div>
+        <h2 style="font-size:19px;">Voting Slip ${record.serial}</h2>
+        <p style="font-size:13px;">${record.name} · ${record.company}</p>
+      </div>
+      ${isVoid ? '<span class="badge badge-danger">Void</span>' : '<span class="badge badge-success">Issued</span>'}
+    </div>
+
+    ${isVoid ? `
+      <div class="alert alert-danger mb-16 no-print">
+        <div class="alert-icon">⚠️</div>
+        <div>
+          <h4>This slip has been voided</h4>
+          <p>Reason: ${record.voidReason || "Not specified"}. It must not be printed or handed to the voter.</p>
+        </div>
+      </div>` : `
+      <div class="alert alert-success mb-16 no-print">
+        <div class="alert-icon">🖨️</div>
+        <div>
+          <h4>Ready to print</h4>
+          <p>If the original print failed or you need a different printer, use the button below — the print dialog lets you pick any connected or network printer, including a Zebra slip/label printer, or save as PDF.</p>
+        </div>
+      </div>`}
+
+    <div class="slip-stage" id="printArea">
+      <div class="slip ${isVoid ? 'is-void' : ''}" id="slipTemplate"></div>
+    </div>
+
+    <div class="flex gap-12 mt-24 no-print">
+      ${isVoid
+        ? `<button class="btn btn-outline btn-lg btn-block" disabled>🚫 Printing disabled — slip is void</button>`
+        : `<button class="btn btn-success btn-lg" style="flex:1;" onclick="doPrint()">🖨️ Print / Choose Printer</button>`}
+      <a class="btn btn-outline btn-lg" href="verify.html?slip=${encodeURIComponent(record.serial)}" target="_blank" rel="noopener">View QR Verification</a>
+    </div>
+  `;
+
+  const el = document.getElementById("slipTemplate");
+  el.innerHTML = `
+    ${isVoid ? '<div class="badge badge-danger" style="position:absolute; top:14px; right:14px;">VOID</div>' : ""}
+    <div class="slip-header">
+      <div class="org">Federation of Karnataka Chambers of Commerce &amp; Industry</div>
+      <div class="title">OFFICIAL VOTING SLIP</div>
+      <div class="election">${FKCCI.ELECTION_NAME}</div>
+    </div>
+    <div class="slip-row"><span class="k">Member ID</span><span class="v">${record.memberId}</span></div>
+    <div class="slip-row"><span class="k">Name</span><span class="v">${record.name}</span></div>
+    <div class="slip-row"><span class="k">Company</span><span class="v">${record.company}</span></div>
+    <div class="slip-row"><span class="k">Designation</span><span class="v">${record.designation}</span></div>
+    <div class="slip-qr"><canvas id="slipQr"></canvas></div>
+    <div class="slip-serial">${record.serial}</div>
+    <div class="slip-row mt-8"><span class="k">Counter</span><span class="v">Counter ${record.counter}</span></div>
+    <div class="slip-row"><span class="k">Issued</span><span class="v">${FKCCI.formatTime(record.timestamp)}</span></div>
+    <div class="slip-footer">Present this slip at the polling booth. Non-transferable. One slip per company.</div>
+  `;
+  renderPseudoQR(document.getElementById("slipQr"), "verify.html?slip=" + encodeURIComponent(record.serial), 150);
+}
+
+function doPrint() {
+  showToast("Opening print dialog — choose your printer…");
+  window.print();
+}
+
+if (!record) {
+  renderNotFound();
+} else {
+  renderSlip();
+}
+</script>
+</body>
+</html>

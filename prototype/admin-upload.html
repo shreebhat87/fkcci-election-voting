@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Master Data — FKCCI Election Voting Slip System</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="proto-banner">🧪 <strong>Interactive Prototype</strong> — mock data only. <a href="index.html">← Back to login</a></div>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="admin-dashboard.html">
+        <div class="brand-mark">FK</div>
+        <div class="brand-text">
+          <div class="title">FKCCI Election 2026</div>
+          <div class="subtitle">Admin Console</div>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="admin-dashboard.html">Dashboard</a>
+        <a href="admin-upload.html" class="active">Master Data</a>
+        <a href="admin-log.html">Voter Log</a>
+      </nav>
+      <div class="session-chip">
+        <div class="avatar avatar-sm" style="background:var(--gold-500); color:var(--navy-900);">AD</div>
+        <span>Election Admin</span>
+        <a href="index.html">Sign out</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+      <h2 style="font-size:20px;" class="mb-16">Master Voter Data</h2>
+
+      <div class="grid-2">
+        <div>
+          <div class="card mb-24">
+            <div class="card-header">
+              <h3><span class="card-muted-label">Step 1</span><br>Import Master Data (Excel)</h3>
+            </div>
+            <p style="font-size:13px;">Upload the master list exported from the previous RFID system. Two rows are expected per company (designated members). Photos are <strong>not</strong> part of this file — see Step 2 below.</p>
+
+            <div class="dropzone mt-16" id="dropzone" onclick="document.getElementById('fileInput').click()">
+              <div class="icon">📄</div>
+              <h4>Drop your .xlsx file here</h4>
+              <p style="font-size:12.5px;">or click to browse · FKCCI-Members-Master.xlsx</p>
+              <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="simulateUpload()">
+            </div>
+
+            <div class="mt-16 hidden" id="uploadProgress">
+              <div class="flex-between" style="font-size:13px; margin-bottom:6px;">
+                <span id="progressLabel">Parsing FKCCI-Members-Master.xlsx…</span>
+                <span id="progressPct">0%</span>
+              </div>
+              <div class="bar-track" style="height:8px;"><div class="bar-fill" id="progressBar" style="width:0%;"></div></div>
+            </div>
+
+            <div class="mt-16 hidden" id="validationResult"></div>
+          </div>
+
+          <div class="card mb-24">
+            <div class="card-header"><h3>Expected Column Mapping</h3></div>
+            <table>
+              <thead><tr><th>Excel Column</th><th>Maps To</th><th>Required</th></tr></thead>
+              <tbody>
+                <tr><td>RFID Tag ID</td><td><code>members.rfid_tag</code></td><td><span class="badge badge-danger">Required</span></td></tr>
+                <tr><td>Member ID</td><td><code>members.member_id</code></td><td><span class="badge badge-danger">Required</span></td></tr>
+                <tr><td>Member Name</td><td><code>members.name</code></td><td><span class="badge badge-danger">Required</span></td></tr>
+                <tr><td>Company Name</td><td><code>companies.name</code></td><td><span class="badge badge-danger">Required</span></td></tr>
+                <tr><td>Designation</td><td><code>members.designation</code></td><td><span class="badge badge-neutral">Optional</span></td></tr>
+                <tr><td>Mobile</td><td><code>members.mobile</code></td><td><span class="badge badge-neutral">Optional</span></td></tr>
+                <tr><td>Email</td><td><code>members.email</code></td><td><span class="badge badge-neutral">Optional</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3><span class="card-muted-label">Step 2</span><br>Member Photos</h3>
+              <span class="badge badge-neutral">Optional</span>
+            </div>
+            <p style="font-size:13px;">Upload a <strong>.zip of photo files</strong>, named exactly as the Member ID — e.g. <code>FKCCI-001A.jpg</code>, <code>FKCCI-001B.jpg</code>. The system matches each file to a member automatically by filename; no manual mapping step needed. Photos are shown to the counter operator and on the QR verification screen only — <strong>never printed on the voting slip</strong>. Any member without a photo just shows their initials instead; nothing is blocked by a missing photo.</p>
+
+            <div class="dropzone mt-16" id="photoDropzone" onclick="document.getElementById('photoInput').click()">
+              <div class="icon">🖼️</div>
+              <h4>Drop your photos.zip here</h4>
+              <p style="font-size:12.5px;">or click to browse · FKCCI-Member-Photos.zip</p>
+              <input type="file" id="photoInput" accept=".zip" class="hidden" onchange="simulatePhotoUpload()">
+            </div>
+
+            <div class="mt-16 hidden" id="photoUploadProgress">
+              <div class="flex-between" style="font-size:13px; margin-bottom:6px;">
+                <span id="photoProgressLabel">Extracting FKCCI-Member-Photos.zip…</span>
+                <span id="photoProgressPct">0%</span>
+              </div>
+              <div class="bar-track" style="height:8px;"><div class="bar-fill" id="photoProgressBar" style="width:0%;"></div></div>
+            </div>
+
+            <div class="mt-16 hidden" id="photoResult"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card mb-24">
+            <div class="card-header"><h3>Current Master Data</h3></div>
+            <div class="stat-tile accent-navy mb-16">
+              <div class="stat-label">Members Loaded</div>
+              <div class="stat-value" id="loadedCount">20</div>
+              <div class="stat-sub" id="loadedCompanies">10 companies · 2 reps each</div>
+            </div>
+            <div class="stat-tile accent-gold mb-16">
+              <div class="stat-label">Photo Coverage</div>
+              <div class="stat-value" id="photoCoverage">17 / 20</div>
+              <div class="stat-sub">Optional — missing photos fall back to initials on screen</div>
+            </div>
+            <p style="font-size:12.5px;" class="text-muted">Last import: 16 Sep 2026, 6:42 PM by admin@fkcci.in</p>
+          </div>
+
+          <div class="card mb-24">
+            <div class="card-header"><h3>Import History</h3></div>
+            <table>
+              <thead><tr><th>File</th><th>Rows</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>FKCCI-Members-Master.xlsx</td><td>20</td><td><span class="badge badge-success">Success</span></td></tr>
+                <tr><td>FKCCI-Members-Master-v2.xlsx</td><td>18</td><td><span class="badge badge-warning">2 duplicates skipped</span></td></tr>
+                <tr><td>FKCCI-Members-draft.xlsx</td><td>15</td><td><span class="badge badge-danger">Failed — missing column</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>Members Without a Photo</h3></div>
+            <p style="font-size:12.5px;" class="text-muted mb-16">Not a problem — these members can still be scanned and issued a slip normally. This list is just so you know who to chase for a photo, if you want full coverage.</p>
+            <div id="noPhotoList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/photo.js"></script>
+<script>
+document.getElementById("loadedCount").textContent = FKCCI.MEMBERS.length;
+document.getElementById("loadedCompanies").textContent = `${FKCCI.COMPANIES.length} companies · 2 reps each`;
+
+const withPhoto = FKCCI.MEMBERS.filter(m => m.hasPhoto);
+const withoutPhoto = FKCCI.MEMBERS.filter(m => !m.hasPhoto);
+document.getElementById("photoCoverage").textContent = `${withPhoto.length} / ${FKCCI.MEMBERS.length}`;
+
+document.getElementById("noPhotoList").innerHTML = withoutPhoto.length
+  ? withoutPhoto.map(m => `
+      <div class="flex-between" style="padding:7px 0; border-bottom:1px solid var(--border); font-size:13px;">
+        <div>
+          <div style="font-weight:600;">${m.name}</div>
+          <div class="text-muted" style="font-size:11.5px;">${m.memberId} · ${m.company}</div>
+        </div>
+        <span class="badge badge-neutral">No photo</span>
+      </div>`).join("")
+  : `<p class="text-muted" style="font-size:13px;">Every member has a photo on file.</p>`;
+
+const dz = document.getElementById("dropzone");
+["dragover"].forEach(evt => dz.addEventListener(evt, e => { e.preventDefault(); dz.classList.add("is-drag"); }));
+["dragleave", "drop"].forEach(evt => dz.addEventListener(evt, e => { e.preventDefault(); dz.classList.remove("is-drag"); }));
+dz.addEventListener("drop", () => simulateUpload());
+
+const photoDz = document.getElementById("photoDropzone");
+["dragover"].forEach(evt => photoDz.addEventListener(evt, e => { e.preventDefault(); photoDz.classList.add("is-drag"); }));
+["dragleave", "drop"].forEach(evt => photoDz.addEventListener(evt, e => { e.preventDefault(); photoDz.classList.remove("is-drag"); }));
+photoDz.addEventListener("drop", () => simulatePhotoUpload());
+
+function simulateUpload() {
+  document.getElementById("uploadProgress").classList.remove("hidden");
+  document.getElementById("validationResult").classList.add("hidden");
+  let pct = 0;
+  const bar = document.getElementById("progressBar");
+  const label = document.getElementById("progressPct");
+  const iv = setInterval(() => {
+    pct += 18;
+    if (pct >= 100) {
+      pct = 100;
+      clearInterval(iv);
+      setTimeout(showValidation, 300);
+    }
+    bar.style.width = pct + "%";
+    label.textContent = pct + "%";
+  }, 180);
+}
+
+function showValidation() {
+  document.getElementById("uploadProgress").classList.add("hidden");
+  const el = document.getElementById("validationResult");
+  el.classList.remove("hidden");
+  el.innerHTML = `
+    <div class="alert alert-success">
+      <div class="alert-icon">✅</div>
+      <div>
+        <h4>Validation complete</h4>
+        <p>20 rows parsed · 20 valid · 0 duplicate RFID tags · 0 missing required fields.</p>
+      </div>
+    </div>
+    <div class="flex gap-12 mt-16">
+      <button class="btn btn-primary" style="flex:1;" onclick="alert('Prototype only — this would commit the import to the members table.')">Confirm &amp; Import 20 Members</button>
+      <button class="btn btn-outline" onclick="document.getElementById('validationResult').classList.add('hidden')">Cancel</button>
+    </div>
+  `;
+}
+
+function simulatePhotoUpload() {
+  document.getElementById("photoUploadProgress").classList.remove("hidden");
+  document.getElementById("photoResult").classList.add("hidden");
+  let pct = 0;
+  const bar = document.getElementById("photoProgressBar");
+  const label = document.getElementById("photoProgressPct");
+  const iv = setInterval(() => {
+    pct += 14;
+    if (pct >= 100) {
+      pct = 100;
+      clearInterval(iv);
+      setTimeout(showPhotoValidation, 300);
+    }
+    bar.style.width = pct + "%";
+    label.textContent = pct + "%";
+  }, 150);
+}
+
+function showPhotoValidation() {
+  document.getElementById("photoUploadProgress").classList.add("hidden");
+  const el = document.getElementById("photoResult");
+  el.classList.remove("hidden");
+
+  // Simulated result: matched files = members that already have a photo in
+  // this demo, plus one filename that didn't match anything (typo/stale file).
+  const matched = withPhoto;
+  const unmatchedFile = "FKCCI-003A_old.jpg";
+
+  el.innerHTML = `
+    <div class="alert alert-success">
+      <div class="alert-icon">✅</div>
+      <div>
+        <h4>${matched.length} photos matched automatically</h4>
+        <p>By filename = Member ID. ${withoutPhoto.length} member${withoutPhoto.length === 1 ? "" : "s"} still have no photo — not a problem, they'll show initials instead.</p>
+      </div>
+    </div>
+    <div class="alert alert-warning mt-16">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <h4>1 file could not be matched</h4>
+        <p><code>${unmatchedFile}</code> — no member with this ID. It was skipped; nothing else was affected.</p>
+      </div>
+    </div>
+    <div class="mt-16">
+      <div class="card-muted-label mb-16">Preview — matched photos</div>
+      <div id="photoPreviewGrid" style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px;"></div>
+    </div>
+    <div class="flex gap-12 mt-16">
+      <button class="btn btn-primary" style="flex:1;" onclick="alert('Prototype only — this would save each photo to writable/uploads/photos/ and store the path on the matching member.')">Confirm &amp; Save ${matched.length} Photos</button>
+      <button class="btn btn-outline" onclick="document.getElementById('photoResult').classList.add('hidden')">Cancel</button>
+    </div>
+  `;
+
+  const grid = document.getElementById("photoPreviewGrid");
+  matched.forEach(m => {
+    const cell = document.createElement("div");
+    cell.style.textAlign = "center";
+    cell.innerHTML = `<div class="photo-avatar" style="width:56px; height:56px; margin:0 auto;"><canvas></canvas></div>
+      <div style="font-size:10.5px; margin-top:4px; color:var(--text-600);">${m.memberId}</div>`;
+    grid.appendChild(cell);
+    renderPersonPhoto(cell.querySelector("canvas"), m.memberId, 56);
+  });
+}
+</script>
+</body>
+</html>

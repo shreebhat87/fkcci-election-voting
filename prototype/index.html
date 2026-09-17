@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FKCCI Election Voting Slip System — Login</title>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="proto-banner">
+  🧪 <strong>Interactive HTML Prototype</strong> — mock data only, not connected to a real database or RFID hardware.
+</div>
+
+<div class="login-wrap">
+  <div style="width:100%;max-width:900px;">
+    <div class="login-header">
+      <div class="brand-mark">FK</div>
+      <h1>FKCCI Election Voting Slip System</h1>
+      <p>Federation of Karnataka Chambers of Commerce &amp; Industry · Election Day Operations</p>
+    </div>
+
+    <div class="login-grid">
+      <div class="login-card">
+        <div class="icon-badge">🪪</div>
+        <h2>Counter Operator</h2>
+        <p>For staff issuing voting slips at the 10 election-day counters.</p>
+        <form class="mt-16" onsubmit="event.preventDefault(); goCounter();">
+          <div class="field">
+            <label for="counterNo">Assigned Counter</label>
+            <select id="counterNo">
+              <option value="1">Counter 1</option>
+              <option value="2">Counter 2</option>
+              <option value="3" selected>Counter 3</option>
+              <option value="4">Counter 4</option>
+              <option value="5">Counter 5</option>
+              <option value="6">Counter 6</option>
+              <option value="7">Counter 7</option>
+              <option value="8">Counter 8</option>
+              <option value="9">Counter 9</option>
+              <option value="10">Counter 10</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="opPin">Operator PIN</label>
+            <input type="password" id="opPin" placeholder="••••" value="1234">
+            <p class="hint">Prototype only — any PIN will work.</p>
+          </div>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">Sign in to Counter →</button>
+        </form>
+      </div>
+
+      <div class="login-card">
+        <div class="icon-badge">🛡️</div>
+        <h2>Election Admin</h2>
+        <p>For the FKCCI / World Vision Softek team managing master data and monitoring turnout.</p>
+        <form class="mt-16" onsubmit="event.preventDefault(); goAdmin();">
+          <div class="field">
+            <label for="adminUser">Username</label>
+            <input type="text" id="adminUser" value="admin@fkcci.in">
+          </div>
+          <div class="field">
+            <label for="adminPass">Password</label>
+            <input type="password" id="adminPass" placeholder="••••••••" value="password">
+            <p class="hint">Prototype only — any credentials will work.</p>
+          </div>
+          <button class="btn btn-gold btn-lg btn-block" type="submit">Sign in to Admin →</button>
+        </form>
+      </div>
+    </div>
+
+    <p class="text-center mt-24" style="color:#cbd6e8; font-size:12.5px;">
+      Voter verification (QR scan) page: <a href="verify.html" style="color:#fff;">view sample</a>
+    </p>
+  </div>
+</div>
+
+<script>
+function goCounter() {
+  const counter = document.getElementById("counterNo").value;
+  localStorage.setItem("fkcci_active_counter", counter);
+  window.location.href = "counter.html";
+}
+function goAdmin() {
+  window.location.href = "admin-dashboard.html";
+}
+</script>
+</body>
+</html>
