@@ -16,6 +16,24 @@
 defined('APP_NAMESPACE') || define('APP_NAMESPACE', 'App');
 
 /*
+ | --------------------------------------------------------------------
+ | Application Timezone
+ | --------------------------------------------------------------------
+ |
+ | FKCCI's election is run in India, and every timestamp the app writes
+ | (votes.issued_at, import_batches.imported_at, etc — all via plain
+ | date('Y-m-d H:i:s') calls, not CI4's Time class) needs to be IST
+ | regardless of what timezone the underlying server/PHP.ini defaults
+ | to. Config\App::$appTimezone alone does NOT cover this — per its own
+ | docblock it only affects CI4's date helper/Time class, not PHP's
+ | native date()/time()/strtotime(). Setting the real PHP default here,
+ | as early in boot as possible, is what actually makes every date()
+ | call in the app (models, seeders, everywhere) produce IST wall-clock
+ | values consistently.
+ */
+date_default_timezone_set('Asia/Kolkata');
+
+/*
  | --------------------------------------------------------------------------
  | Composer Path
  | --------------------------------------------------------------------------

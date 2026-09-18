@@ -145,7 +145,7 @@ class CounterController extends BaseController
             'serial_no' => $vote['serial_no'],
             'member_name' => $vote['member_name'] ?? null,
             'counter_no' => $vote['counter_no'],
-            'issued_at' => $vote['issued_at'],
+            'issued_at' => formatIST($vote['issued_at']),
         ];
     }
 
@@ -157,7 +157,7 @@ class CounterController extends BaseController
             'name' => $member['name'],
             'company_name' => $member['company_name'],
             'counter_no' => $vote['counter_no'],
-            'issued_at' => $vote['issued_at'],
+            'issued_at' => formatIST($vote['issued_at']),
         ];
     }
 }

@@ -69,7 +69,7 @@
               <td><?= esc($v['member_name']) ?><div class="text-muted" style="font-size:11.5px;"><?= esc($v['member_code']) ?></div></td>
               <td><?= esc($v['company_name']) ?></td>
               <td>Counter <?= esc($v['counter_no']) ?></td>
-              <td><?= esc($v['issued_at']) ?></td>
+              <td><?= esc(formatIST($v['issued_at'])) ?></td>
               <td><?= $v['status'] === 'issued' ? '<span class="badge badge-success">Issued</span>' : '<span class="badge badge-danger">Void</span>' ?></td>
               <td>
                 <?php if ($v['status'] === 'issued'): ?>

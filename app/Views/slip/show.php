@@ -16,7 +16,7 @@
 
 <header class="topbar no-print">
   <div class="container topbar-inner">
-    <a class="brand" href="javascript:history.back()">
+    <a class="brand" href="<?= base_url('/') ?>" onclick="return goBack(event)">
       <div class="brand-mark"><img src="<?= base_url('assets/img/fkcci-mark.png') ?>" alt="FKCCI"></div>
       <div class="brand-text">
         <div class="title">FKCCI Election 2026</div>
@@ -24,7 +24,7 @@
       </div>
     </a>
     <div class="nav-links">
-      <a href="javascript:history.back()">← Back</a>
+      <a href="<?= base_url('/') ?>" onclick="return goBack(event)">← Back</a>
     </div>
   </div>
 </header>
@@ -74,7 +74,7 @@
       <div class="slip-qr"><img src="<?= site_url('slip/' . $vote['serial_no'] . '/qr') ?>" width="150" height="150" alt="QR code"></div>
       <div class="slip-serial"><?= esc($vote['serial_no']) ?></div>
       <div class="slip-row mt-8"><span class="k">Counter</span><span class="v">Counter <?= esc($vote['counter_no']) ?></span></div>
-      <div class="slip-row"><span class="k">Issued</span><span class="v"><?= esc($vote['issued_at']) ?></span></div>
+      <div class="slip-row"><span class="k">Issued</span><span class="v"><?= esc(formatIST($vote['issued_at'])) ?></span></div>
       <div class="slip-footer">Present this slip at the polling booth. Non-transferable. One slip per company.</div>
     </div>
   </div>
@@ -91,6 +91,22 @@
 </main>
 
 <?= view('partials/footer') ?>
+
+<script>
+// This page is often opened via target="_blank" (from the counter's Recent
+// Activity list, or the admin voter log), where history.back() has nothing
+// to go back to and silently does nothing. document.referrer reflects the
+// linking page's URL regardless of whether it opened in the same tab or a
+// new one, so it's a reliable "back" either way — falls through to the
+// href's default (site root, which redirects to /counter or /admin based
+// on the session) only if there's no usable same-origin referrer.
+function goBack(event) {
+  if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) {
+    event.preventDefault();
+    window.location.href = document.referrer;
+  }
+}
+</script>
 
 </body>
 </html>

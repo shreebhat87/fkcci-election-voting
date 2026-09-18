@@ -79,7 +79,7 @@
         <div class="flex-between mt-8"><span class="text-muted">Member ID</span><strong><?= esc($vote['member_code']) ?></strong></div>
         <div class="flex-between mt-8"><span class="text-muted">Company</span><strong style="text-align:right; max-width:220px;"><?= esc($vote['company_name']) ?></strong></div>
         <div class="flex-between mt-8"><span class="text-muted">Slip No.</span><strong><?= esc($vote['serial_no']) ?></strong></div>
-        <div class="flex-between mt-8"><span class="text-muted">Issued at</span><strong>Counter <?= esc($vote['counter_no']) ?>, <?= esc($vote['issued_at']) ?></strong></div>
+        <div class="flex-between mt-8"><span class="text-muted">Issued at</span><strong>Counter <?= esc($vote['counter_no']) ?>, <?= esc(formatIST($vote['issued_at'])) ?></strong></div>
       </div>
     </div>
   <?php endif; ?>

@@ -180,7 +180,7 @@ function renderRecent(votes) {
       </div>
       <div style="text-align:right;">
         <div class="text-muted" style="font-size:11.5px;">${escapeHtml(v.time_ago)}</div>
-        <a href="${v.slip_url}" target="_blank" rel="noopener" style="font-size:11.5px; font-weight:600;">View / Print ↗</a>
+        <a href="${v.slip_url}" style="font-size:11.5px; font-weight:600;">View / Print →</a>
       </div>
     </div>
   `).join("");
@@ -284,6 +284,13 @@ function initials(name) {
   return (name || "").split(" ").filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
 }
 
+// Because scanning re-enables immediately (see showIssuedConfirmation), an
+// operator can issue a second slip before the first one's QR has finished
+// loading and printed. Chaining every buildSlip+print through one shared
+// promise keeps them strictly sequential, so a fast second scan can never
+// overwrite #slipTemplate while the first slip's print is still pending.
+let printChain = Promise.resolve();
+
 function issueSlip(rfid) {
   postJSON("<?= site_url('counter/issue') ?>", { rfid }).then(res => {
     if (res.status === "already_voted") {
@@ -297,8 +304,13 @@ function issueSlip(rfid) {
       resetScanZone();
       return;
     }
-    buildSlip(res.vote);
-    window.print();
+    // Wait for the QR image to actually finish loading before printing —
+    // otherwise window.print() can fire while the browser has only just
+    // started the request for it, and the printed slip shows a blank
+    // square where the QR should be (the reprint page doesn't have this
+    // problem because the image has had the whole page-load to arrive
+    // before anyone clicks its print button).
+    printChain = printChain.then(() => buildSlip(res.vote)).then(() => window.print());
     showToast(`Slip ${res.vote.serial_no} issued for ${res.vote.name} (${res.vote.company_name})`);
     refreshStats();
     showIssuedConfirmation(res.vote, res.slip_url);
@@ -309,11 +321,6 @@ function issueSlip(rfid) {
 }
 
 function showIssuedConfirmation(vote, slipUrl) {
-  document.getElementById("scanZone").classList.remove("is-active");
-  document.getElementById("scanZoneTitle").textContent = "Slip issued — ready for next voter";
-  rfidInput.value = "";
-  rfidInput.disabled = true;
-
   const card = document.getElementById("resultCard");
   card.classList.remove("hidden");
   card.innerHTML = `
@@ -330,10 +337,22 @@ function showIssuedConfirmation(vote, slipUrl) {
     </div>
     <p class="hint mt-8">Printer offline, wrong tray, or need a different printer? Reopen the slip below — it can be viewed on screen or reprinted to any connected printer without rescanning the card (the vote is already recorded).</p>
     <div class="flex gap-12 mt-16 no-print">
-      <a class="btn btn-outline btn-lg" style="flex:1;" href="${slipUrl}" target="_blank" rel="noopener">🖨️ View / Print Again</a>
-      <button class="btn btn-primary btn-lg" style="flex:1;" onclick="resetScanZone()">➡ Next Voter</button>
+      <a class="btn btn-outline btn-lg" style="flex:1;" href="${slipUrl}">🖨️ View / Print Again</a>
+      <button class="btn btn-primary btn-lg" style="flex:1;" onclick="resetScanZone()">✕ Dismiss</button>
     </div>
   `;
+  // Ready for the next voter immediately — no extra click needed. This
+  // confirmation just stays visible (and gets replaced automatically by
+  // the next scan's result) until the operator dismisses it or moves on.
+  resetScanReadyState();
+}
+
+function resetScanReadyState() {
+  document.getElementById("scanZone").classList.remove("is-active");
+  document.getElementById("scanZoneTitle").textContent = "Ready to scan";
+  rfidInput.value = "";
+  rfidInput.disabled = false;
+  rfidInput.focus();
 }
 
 function buildSlip(vote) {
@@ -346,12 +365,20 @@ function buildSlip(vote) {
     <div class="slip-row"><span class="k">Member ID</span><span class="v">${escapeHtml(vote.member_id)}</span></div>
     <div class="slip-row"><span class="k">Name</span><span class="v">${escapeHtml(vote.name)}</span></div>
     <div class="slip-row"><span class="k">Company</span><span class="v">${escapeHtml(vote.company_name)}</span></div>
-    <div class="slip-qr"><img src="<?= site_url('slip') ?>/${vote.serial_no}/qr" alt="QR code" width="150" height="150"></div>
+    <div class="slip-qr"><img id="slipQrImg" src="<?= site_url('slip') ?>/${vote.serial_no}/qr" alt="QR code" width="150" height="150"></div>
     <div class="slip-serial">${escapeHtml(vote.serial_no)}</div>
     <div class="slip-row mt-8"><span class="k">Counter</span><span class="v">Counter ${escapeHtml(String(vote.counter_no))}</span></div>
     <div class="slip-row"><span class="k">Issued</span><span class="v">${escapeHtml(vote.issued_at)}</span></div>
     <div class="slip-footer">Present this slip at the polling booth. Non-transferable. One slip per company.</div>
   `;
+
+  return new Promise(resolve => {
+    const img = document.getElementById("slipQrImg");
+    if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+    img.addEventListener("load", resolve, { once: true });
+    img.addEventListener("error", resolve, { once: true }); // don't block printing forever if the QR fails to load
+    setTimeout(resolve, 2000); // safety net
+  });
 }
 
 function closeVotedModal() {
