@@ -48,6 +48,8 @@ $routes->group('admin', ['filter' => ['auth', 'role:admin']], static function ($
     $routes->post('master-data/commit-excel', [MasterDataController::class, 'commitExcel']);
     $routes->post('master-data/preview-photos', [MasterDataController::class, 'previewPhotos']);
     $routes->post('master-data/commit-photos', [MasterDataController::class, 'commitPhotos']);
+    $routes->post('master-data/sync-zoho', [MasterDataController::class, 'syncZoho']);
+    $routes->post('master-data/commit-zoho', [MasterDataController::class, 'commitZoho']);
 
     $routes->get('voter-log', [VoterLogController::class, 'index']);
     $routes->post('voter-log/void/(:segment)', [VoterLogController::class, 'void']);

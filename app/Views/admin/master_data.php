@@ -18,7 +18,7 @@
       <div class="grid-2">
         <div>
           <div class="card mb-24">
-            <div class="card-header"><h3><span class="card-muted-label">Step 1</span><br>Import Master Data (Excel)</h3></div>
+            <div class="card-header"><h3><span class="card-muted-label">Step 1 · Option A</span><br>Import Master Data (Excel)</h3></div>
             <p style="font-size:13px;">Upload the master list exported from the previous RFID system. Two rows are expected per company (designated members). Photos are <strong>not</strong> part of this file — see Step 2 below.</p>
 
             <form id="excelForm" enctype="multipart/form-data">
@@ -36,6 +36,26 @@
             </div>
 
             <div class="mt-16 hidden" id="excelResult"></div>
+          </div>
+
+          <div class="card mb-24">
+            <div class="card-header">
+              <h3><span class="card-muted-label">Step 1 · Option B</span><br>Sync from Zoho CRM</h3>
+              <?= $zohoDriver === 'simulated' ? '<span class="badge badge-warning">Simulated</span>' : '<span class="badge badge-success">Live</span>' ?>
+            </div>
+            <p style="font-size:13px;">Alternative to the Excel upload above — pulls the same fields (Company Name, Membership ID, both contact persons, RFID Tag IDs) directly from Zoho CRM instead of a manual file. Either source writes to the same member records; you don't need to use both.</p>
+            <?php if ($zohoDriver === 'simulated'): ?>
+              <p style="font-size:12px;" class="text-muted">Currently returns fixed sample data — no live Zoho org is connected yet. Once API credentials are added (<code>app/Config/Zoho.php</code>), this becomes a real sync with no other code changes.</p>
+            <?php endif; ?>
+
+            <button class="btn btn-primary mt-16" onclick="syncZoho()">🔄 Sync Now</button>
+
+            <div class="mt-16 hidden" id="zohoProgress">
+              <p style="font-size:13px;">Contacting Zoho CRM…</p>
+              <div class="bar-track" style="height:8px;"><div class="bar-fill" style="width:100%;"></div></div>
+            </div>
+
+            <div class="mt-16 hidden" id="zohoResult"></div>
           </div>
 
           <div class="card mb-24">
@@ -98,6 +118,7 @@
             <div class="card-header"><h3>Import History</h3></div>
             <?php $allHistory = array_merge(
                 array_map(static fn ($b) => $b + ['label' => 'Excel'], $excelHistory),
+                array_map(static fn ($b) => $b + ['label' => 'Zoho'], $zohoHistory),
                 array_map(static fn ($b) => $b + ['label' => 'Photos'], $photoHistory)
             );
             usort($allHistory, static fn ($a, $b) => strcmp($b['imported_at'], $a['imported_at'])); ?>
@@ -217,6 +238,53 @@ function commitExcel(token, extension, originalName) {
   postJSON("<?= site_url('admin/master-data/commit-excel') ?>", { token, extension, original_name: originalName }).then(res => {
     if (res.error) { alert(res.error); return; }
     alert(`Imported ${res.imported} members` + (res.errors ? ` (${res.errors} rows had errors)` : "") + ". Reloading…");
+    window.location.reload();
+  });
+}
+
+/* ---------- Zoho CRM sync ---------- */
+function syncZoho() {
+  document.getElementById("zohoProgress").classList.remove("hidden");
+  document.getElementById("zohoResult").classList.add("hidden");
+  postJSON("<?= site_url('admin/master-data/sync-zoho') ?>", {}).then(res => {
+    document.getElementById("zohoProgress").classList.add("hidden");
+    showZohoPreview(res);
+  }).catch(() => {
+    document.getElementById("zohoProgress").classList.add("hidden");
+    alert("Sync failed — please try again.");
+  });
+}
+
+function showZohoPreview(res) {
+  const el = document.getElementById("zohoResult");
+  el.classList.remove("hidden");
+  if (res.error) {
+    el.innerHTML = `<div class="alert alert-danger"><div class="alert-icon">⚠️</div><div><h4>Could not sync</h4><p>${escapeHtml(res.error)}</p></div></div>`;
+    return;
+  }
+  const errorList = res.errors.length
+    ? `<div class="modal-details mt-8" style="text-align:left; max-height:160px; overflow:auto;">${res.errors.map(e => `<div>${escapeHtml(e)}</div>`).join("")}</div>`
+    : "";
+  el.innerHTML = `
+    <div class="alert ${res.error_rows > 0 ? "alert-warning" : "alert-success"}">
+      <div class="alert-icon">${res.error_rows > 0 ? "⚠️" : "✅"}</div>
+      <div>
+        <h4>Fetched ${res.company_count} compan${res.company_count === 1 ? "y" : "ies"} from Zoho</h4>
+        <p>${res.total_rows} member rows · ${res.valid_rows} valid · ${res.error_rows} with errors.</p>
+        ${errorList}
+      </div>
+    </div>
+    <div class="flex gap-12 mt-16">
+      <button class="btn btn-primary" style="flex:1;" onclick='commitZoho(${JSON.stringify(res.token)})'>Confirm &amp; Import ${res.valid_rows} Members</button>
+      <button class="btn btn-outline" onclick="document.getElementById('zohoResult').classList.add('hidden')">Cancel</button>
+    </div>
+  `;
+}
+
+function commitZoho(token) {
+  postJSON("<?= site_url('admin/master-data/commit-zoho') ?>", { token }).then(res => {
+    if (res.error) { alert(res.error); return; }
+    alert(`Imported ${res.imported} members from Zoho` + (res.errors ? ` (${res.errors} rows had errors)` : "") + ". Reloading…");
     window.location.reload();
   });
 }

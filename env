@@ -67,3 +67,19 @@
 #--------------------------------------------------------------------
 
 # logger.threshold = 4
+
+#--------------------------------------------------------------------
+# ZOHO CRM (alternative member-data source to the Excel upload)
+#--------------------------------------------------------------------
+
+# Leave as 'simulated' until real credentials below are filled in and
+# confirmed against your Zoho org's actual field API names — see the
+# comments in app/Config/Zoho.php before switching this to 'live'.
+# zoho.driver = simulated
+
+# zoho.clientId =
+# zoho.clientSecret =
+# zoho.refreshToken =
+# zoho.accountsDomain = 'https://accounts.zoho.in'
+# zoho.apiDomain = 'https://www.zohoapis.in'
+# zoho.module = Members

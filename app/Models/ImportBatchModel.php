@@ -10,7 +10,7 @@ class ImportBatchModel extends Model
     protected $primaryKey = 'id';
     protected $returnType = 'array';
     protected $allowedFields = [
-        'type', 'filename', 'row_count', 'valid_count', 'error_count',
+        'type', 'source', 'filename', 'row_count', 'valid_count', 'error_count',
         'details', 'imported_by', 'imported_at',
     ];
     protected $useTimestamps = false;
@@ -18,6 +18,14 @@ class ImportBatchModel extends Model
     public function recent(string $type, int $limit = 10): array
     {
         return $this->where('type', $type)
+            ->orderBy('imported_at', 'DESC')
+            ->findAll($limit);
+    }
+
+    public function recentBySource(string $type, string $source, int $limit = 10): array
+    {
+        return $this->where('type', $type)
+            ->where('source', $source)
             ->orderBy('imported_at', 'DESC')
             ->findAll($limit);
     }

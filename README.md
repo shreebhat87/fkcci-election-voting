@@ -143,21 +143,60 @@ is meant to be scanned by hall-entry staff on their own phones.
 ### Admin (`/admin/...`, admin role only)
 
 - **Master data** — Excel import (`phpoffice/phpspreadsheet`) for
-  RFID/Member ID/Name/Company/Designation/Mobile/Email, and a *separate*,
-  optional bulk photo upload (`.zip`, matched to members by filename ==
-  Member ID). Neither Excel import nor voting requires a photo to exist.
+  RFID/Member ID/Name/Company/Designation/Mobile/Email, *or* a Zoho CRM sync
+  as an alternative source (see below — simulated until real credentials
+  are configured), plus a *separate*, optional bulk photo upload (`.zip`,
+  matched to members by filename == Member ID). None of Excel import, Zoho
+  sync, or voting requires a photo to exist.
 - **Voter log** — search/filter by counter/status, void a wrongly-issued
   slip with a reason, CSV export.
 - **Dashboard** — turnout stats, votes per counter, companies pending.
 
 ## Branding
 
-Every page shows a top-left "FK" brand mark and a "Powered by: World Vision
-Softek" footer (`app/Views/partials/footer.php`). The brand mark is a text
-placeholder (`.brand-mark` in `assets/css/app.css`) — no actual FKCCI logo
-file was provided. Swap it for a real `<img>` once you have the logo asset;
-everywhere it's used pulls from the same CSS class, so it's a one-place
-change.
+Every page shows the FKCCI seal top-left and a "Powered by: World Vision
+Softek" footer (`app/Views/partials/footer.php`). The logo asset is
+`public/assets/img/fkcci-mark.png` — cropped from the supplied logo (which
+has an "Estd. 1916" caption beneath the seal, not usable at the ~40px header
+size) down to just the circular emblem, then compressed with pngquant since
+it loads on every page. To swap it for an updated logo file later, replace
+that one PNG — every header pulls from the same `.brand-mark` CSS class.
+
+## Zoho CRM sync (alternative to the Excel import)
+
+Admin → Master Data → Step 1 · Option B lets an admin pull member data from
+Zoho CRM instead of uploading an Excel file — same preview-before-commit
+flow, same validation, writes to the same `members`/`companies` tables. One
+Zoho record is assumed to be a company's membership with **both** designated
+contact persons on it (matching how this system needs two independent
+`members` rows per company); confirm that's actually how your Zoho module is
+laid out once you have access to it.
+
+**This ships in `simulated` mode** — `app/Libraries/Zoho/SimulatedZohoMembersClient.php`
+returns fixed sample data, no network call, so the whole import UI can be
+demoed and tested without Zoho credentials. `LiveZohoMembersClient.php` is
+written against Zoho CRM's documented REST API v2 (OAuth2 refresh-token
+flow, paginated `GET /crm/v2/{module}`) but has **never been run against a
+real Zoho org** — there were no credentials available while building this.
+
+**To go live**, no code changes are needed — only configuration:
+
+1. Set `zoho.driver = live` in `.env`
+2. Fill in `zoho.clientId` / `clientSecret` / `refreshToken` /
+   `accountsDomain` / `apiDomain` (region-specific — India is
+   `accounts.zoho.in` / `www.zohoapis.in`, see Zoho's multi-DC docs for
+   other regions)
+3. **Confirm `app/Config/Zoho.php`'s `$module` and `$fieldMap` against your
+   org's actual field API names** (Setup → Customization → Modules and
+   Fields — the API name, not the display label). The names currently in
+   there (`Membership_ID`, `Contact_Person_1`, `RFID_Tag_ID_1`, etc.) are
+   placeholders based on the field list you gave, not verified against a
+   real module.
+
+Everything else — the controller, the preview/commit UI, validation — talks
+only to `ZohoMembersClientInterface`, never to either implementation
+directly, via `ZohoClientFactory::make()`. That's what makes step 1 the only
+step.
 
 ## Directory notes
 
