@@ -11,7 +11,7 @@
 <div class="login-wrap">
   <div style="width:100%;max-width:460px;">
     <div class="login-header">
-      <div class="brand-mark">FK</div>
+      <div class="brand-mark"><img src="<?= base_url('assets/img/fkcci-mark.png') ?>" alt="FKCCI"></div>
       <h1>FKCCI Election Voting Slip System</h1>
       <p>Federation of Karnataka Chambers of Commerce &amp; Industry</p>
     </div>

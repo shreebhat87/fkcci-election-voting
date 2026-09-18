@@ -17,7 +17,7 @@
 <header class="topbar no-print">
   <div class="container topbar-inner">
     <a class="brand" href="javascript:history.back()">
-      <div class="brand-mark">FK</div>
+      <div class="brand-mark"><img src="<?= base_url('assets/img/fkcci-mark.png') ?>" alt="FKCCI"></div>
       <div class="brand-text">
         <div class="title">FKCCI Election 2026</div>
         <div class="subtitle">Voting Slip</div>

@@ -1,7 +1,7 @@
 <header class="topbar">
   <div class="container topbar-inner">
     <a class="brand" href="<?= base_url('admin') ?>">
-      <div class="brand-mark">FK</div>
+      <div class="brand-mark"><img src="<?= base_url('assets/img/fkcci-mark.png') ?>" alt="FKCCI"></div>
       <div class="brand-text">
         <div class="title">FKCCI Election 2026</div>
         <div class="subtitle">Admin Console</div>

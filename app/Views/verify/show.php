@@ -20,7 +20,7 @@
 
 <div class="verify-wrap">
   <div class="text-center" style="margin: 18px 0 20px;">
-    <div class="brand-mark" style="margin:0 auto 10px;">FK</div>
+    <div class="brand-mark" style="margin:0 auto 10px;"><img src="<?= base_url('assets/img/fkcci-mark.png') ?>" alt="FKCCI"></div>
     <h2 style="color:#fff;">Voting Slip Verification</h2>
     <p style="color:#b8c4da;">FKCCI Election 2026</p>
   </div>
