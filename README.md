@@ -3,7 +3,9 @@
 CodeIgniter 4 + MySQL application for the Federation of Karnataka Chambers of
 Commerce & Industry (FKCCI): RFID-based voting slip issuance at 10 simultaneous
 election-day counters, with one-vote-per-company enforcement, QR slip
-verification, and admin tools for master data and the voter log.
+verification, exit-desk EVM vote confirmation (camera QR scan of the
+surrendered slip), and admin tools for master data, the voter log, and
+turnout.
 
 An HTML prototype of the full flow lives in [`prototype/`](prototype/) — see
 its README for the confirmed scope and UX decisions this build implements.
@@ -43,7 +45,8 @@ php spark key:generate
 ```
 
 Create the database, then run migrations and seed an initial admin + one
-operator account per counter:
+operator account per counter + one exit-desk operator account per EVM
+confirmation desk:
 
 ```bash
 mysql -u root -e "CREATE DATABASE fkcci_election CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
@@ -51,11 +54,13 @@ php spark migrate --all
 php spark db:seed InitialUsersSeeder
 ```
 
-`InitialUsersSeeder` creates `admin` (12-char random password) and
-`counter1`–`counter10` (6-digit random PIN), each printed to the console
-**once** — copy them down immediately, they aren't stored anywhere in
-plaintext. Re-running the seeder is safe; it skips any username that
-already exists rather than resetting it.
+`InitialUsersSeeder` creates `admin` (12-char random password),
+`counter1`–`counter10` (6-digit random PIN), and `exit1`–`exit4` (6-digit
+random PIN, one per exit desk — see "EVM vote confirmation" below for why
+4 and how to change it), each printed to the console **once** — copy them
+down immediately, they aren't stored anywhere in plaintext. Re-running the
+seeder is safe; it skips any username that already exists rather than
+resetting it.
 
 For a quick demo with realistic test data (10 companies, 2 members each,
 matching the HTML prototype's dataset), also run:
@@ -89,12 +94,16 @@ this build actually implements — read the prototype README first for *why*.
 
 ### Roles & auth
 
-Two roles, one `users` table, session-based auth (no third-party auth
+Three roles, one `users` table, session-based auth (no third-party auth
 package — the surface is deliberately small):
 
-- **admin** — full access: master data import, voter log, dashboard.
+- **admin** — full access: master data import, voter log, dashboard, and
+  a backup exit-scan station.
 - **operator** — assigned to exactly one counter (`users.assigned_counter`),
   can only use the counter scan/issue screen and reprint slips.
+- **exit_operator** — assigned to exactly one exit desk
+  (`users.assigned_exit_desk`), can only use the exit-desk QR scan screen
+  (`/exit`) to confirm EVM votes.
 
 ### Hardware integration
 
@@ -134,6 +143,47 @@ package — the surface is deliberately small):
    scanned once (the vote is recorded), so this is the only way to recover
    from a failed print.
 
+### EVM vote confirmation (`/exit`, exit_operator/admin)
+
+Getting a voting slip is not the same as casting a ballot — a slip only
+proves eligibility. To measure real turnout, members surrender their slip
+after voting at the EVM, and an exit-desk operator (or admin, as a backup
+station) scans its QR here to confirm that specific slip turned into a
+cast vote.
+
+- **Scanning is camera-based**, not the RFID keyboard-wedge reader used at
+  the issuing counters: the browser's own camera (`getUserMedia`) feeds a
+  live decode loop built on [jsQR](https://github.com/cozmo/jsQR) (vendored
+  at `public/assets/js/vendor/jsQR.js`, Apache-2.0 — no CDN dependency, no
+  network call). A manual "enter slip number" fallback sits right below the
+  camera view for when a camera isn't available or a scan won't read.
+- **Camera access requires a secure context** — `https://` in production,
+  or `http://localhost` for local dev (which is why this works out of the
+  box with `php spark serve` on your own machine but needs real TLS once
+  deployed).
+- **Data model**: confirmation is `votes.voted_at` / `voted_by` /
+  `exit_desk_no` (see migration `AddEvmVoteConfirmationTracking`) —
+  deliberately *not* a third `votes.status` value. `status` alone drives
+  the `active_company_id` generated column that enforces one-issued-slip-
+  per-company (see `CreateVotesTableMigration`); a slip must stay
+  `'issued'` after EVM confirmation, or a second slip could be issued for
+  that company once the first is marked confirmed. Slip validity and EVM
+  confirmation are independent facts, so they're independent columns —
+  voiding a slip and confirming a slip don't interact with each other's
+  state.
+- **Invalid scans are blocked, not silently ignored**: a voided slip shows
+  why and is refused (send the member to the admin desk); a slip already
+  confirmed shows when/where it was first confirmed and records nothing
+  new; an unrecognized QR says so. None of these write to the database.
+- **How many exit desks**: nothing in the original brief fixes this number
+  (unlike the 10 issuing counters, which is a hard given) — `InitialUsersSeeder`
+  seeds 4 as a starting assumption (`exit1`–`exit4`). Change
+  `EXIT_DESK_COUNT` in that seeder and rerun `php spark db:seed
+  InitialUsersSeeder` to add more; existing accounts are left alone.
+- **Admin dashboard** shows issued-vs-confirmed counts and an EVM turnout
+  percentage; the **voter log** has a "Confirmed at EVM?" filter, an EVM
+  column, and the CSV export includes `voted_at`/`exit_desk_no`.
+
 ### QR verification (`/verify/{serial}`, public, no auth)
 
 Scanning the slip's QR code opens this page showing the member's photo (if
@@ -148,9 +198,12 @@ is meant to be scanned by hall-entry staff on their own phones.
   are configured), plus a *separate*, optional bulk photo upload (`.zip`,
   matched to members by filename == Member ID). None of Excel import, Zoho
   sync, or voting requires a photo to exist.
-- **Voter log** — search/filter by counter/status, void a wrongly-issued
-  slip with a reason, CSV export.
-- **Dashboard** — turnout stats, votes per counter, companies pending.
+- **Voter log** — search/filter by counter/status/EVM confirmation, void a
+  wrongly-issued slip with a reason, CSV export.
+- **Dashboard** — turnout stats, votes per counter, companies pending, EVM
+  confirmation turnout.
+- **Exit Scan (backup station)** — same camera QR scanner as an exit desk
+  operator, for when the dedicated exit desks need backup capacity.
 
 ## Branding
 
@@ -202,7 +255,9 @@ step.
 
 - `prototype/` — the static HTML/JS prototype (kept for reference and
   side-by-side UX comparison; not served by the app).
-- `app/Controllers/Counter`, `app/Controllers/Admin`, `app/Controllers/Auth` —
-  route handlers by area.
+- `app/Controllers/Counter`, `app/Controllers/Exit`, `app/Controllers/Admin`,
+  `app/Controllers/Auth` — route handlers by area.
 - `app/Database/Migrations` — schema. `app/Database/Seeds` — initial users.
+- `public/assets/js/vendor/` — vendored third-party JS (currently just
+  jsQR, for exit-desk camera QR scanning) — no CDN dependency, no build step.
 - `writable/uploads/photos/` — uploaded member photos (gitignored).

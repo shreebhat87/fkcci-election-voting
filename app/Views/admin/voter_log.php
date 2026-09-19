@@ -48,6 +48,14 @@
                 <option value="void" <?= $status === 'void' ? 'selected' : '' ?>>Void</option>
               </select>
             </div>
+            <div class="field">
+              <label for="evm">EVM Confirmation</label>
+              <select id="evm" name="evm" onchange="this.form.submit()">
+                <option value="">All</option>
+                <option value="voted" <?= ($evm ?? '') === 'voted' ? 'selected' : '' ?>>Confirmed at EVM</option>
+                <option value="not_voted" <?= ($evm ?? '') === 'not_voted' ? 'selected' : '' ?>>Not yet confirmed</option>
+              </select>
+            </div>
           </div>
           <button class="btn btn-primary" type="submit">Search</button>
         <?= form_close() ?>
@@ -57,11 +65,11 @@
         <div class="card-header"><h3><?= count($votes) ?> slips</h3></div>
         <table>
           <thead>
-            <tr><th>Slip No.</th><th>Member</th><th>Company</th><th>Counter</th><th>Time</th><th>Status</th><th></th></tr>
+            <tr><th>Slip No.</th><th>Member</th><th>Company</th><th>Counter</th><th>Time</th><th>Status</th><th>EVM</th><th></th></tr>
           </thead>
           <tbody>
           <?php if (! $votes): ?>
-            <tr><td colspan="7" class="text-muted text-center">No matching slips.</td></tr>
+            <tr><td colspan="8" class="text-muted text-center">No matching slips.</td></tr>
           <?php endif; ?>
           <?php foreach ($votes as $v): ?>
             <tr>
@@ -71,6 +79,13 @@
               <td>Counter <?= esc($v['counter_no']) ?></td>
               <td><?= esc(formatIST($v['issued_at'])) ?></td>
               <td><?= $v['status'] === 'issued' ? '<span class="badge badge-success">Issued</span>' : '<span class="badge badge-danger">Void</span>' ?></td>
+              <td>
+                <?php if ($v['voted_at']): ?>
+                  <span class="badge badge-success" title="<?= esc(formatIST($v['voted_at'])) ?>">✓ Desk <?= esc($v['exit_desk_no']) ?></span>
+                <?php else: ?>
+                  <span class="badge badge-neutral">—</span>
+                <?php endif; ?>
+              </td>
               <td>
                 <?php if ($v['status'] === 'issued'): ?>
                   <a href="<?= site_url('slip/' . $v['serial_no']) ?>" target="_blank" rel="noopener" style="font-size:12px; font-weight:600; margin-right:12px;">Print</a>

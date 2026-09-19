@@ -6,6 +6,7 @@ use App\Controllers\Counter\CounterController;
 use App\Controllers\Counter\SlipController;
 use App\Controllers\Counter\VerifyController;
 use App\Controllers\Counter\PhotoController;
+use App\Controllers\Exit\ExitScanController;
 use App\Controllers\Admin\DashboardController;
 use App\Controllers\Admin\MasterDataController;
 use App\Controllers\Admin\VoterLogController;
@@ -13,7 +14,15 @@ use App\Controllers\Admin\VoterLogController;
 /** @var RouteCollection $routes */
 
 $routes->get('/', static function () {
-    return redirect()->to(session()->get('user_id') ? (session()->get('role') === 'admin' ? '/admin' : '/counter') : '/login');
+    if (! session()->get('user_id')) {
+        return redirect()->to('/login');
+    }
+
+    return redirect()->to(match (session()->get('role')) {
+        'admin' => '/admin',
+        'exit_operator' => '/exit',
+        default => '/counter',
+    });
 });
 
 // ---------- Auth (public) ----------
@@ -34,9 +43,19 @@ $routes->group('counter', ['filter' => ['auth', 'role:operator,admin']], static 
 });
 
 // Slip view/reprint — usable by whoever issued it (operator) or admin.
-$routes->group('slip', ['filter' => ['auth', 'role:operator,admin']], static function ($routes) {
+$routes->group('slip', ['filter' => ['auth', 'role:operator,admin,exit_operator']], static function ($routes) {
     $routes->get('(:segment)', [SlipController::class, 'show']);
     $routes->get('(:segment)/qr', [SlipController::class, 'qr']);
+});
+
+// ---------- Exit desk (EVM vote confirmation) ----------
+// Members surrender their slip after voting at the EVM; an exit-desk
+// operator (or admin, as a backup station) scans its QR here to confirm
+// the slip turned into an actual cast ballot, not just an issued one.
+$routes->group('exit', ['filter' => ['auth', 'role:exit_operator,admin']], static function ($routes) {
+    $routes->get('/', [ExitScanController::class, 'index']);
+    $routes->post('scan', [ExitScanController::class, 'scan']);
+    $routes->get('stats', [ExitScanController::class, 'stats']);
 });
 
 // ---------- Admin ----------

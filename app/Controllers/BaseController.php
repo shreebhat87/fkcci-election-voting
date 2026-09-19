@@ -53,6 +53,7 @@ abstract class BaseController extends Controller
             'role' => $this->session->get('role'),
             'name' => $this->session->get('name'),
             'assigned_counter' => $this->session->get('assigned_counter'),
+            'assigned_exit_desk' => $this->session->get('assigned_exit_desk'),
         ];
     }
 }

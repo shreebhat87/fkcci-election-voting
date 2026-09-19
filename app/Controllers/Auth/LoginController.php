@@ -44,6 +44,7 @@ class LoginController extends BaseController
             'role' => $user['role'],
             'name' => $user['name'],
             'assigned_counter' => $user['assigned_counter'],
+            'assigned_exit_desk' => $user['assigned_exit_desk'],
         ]);
         $users->touchLastLogin($user['id']);
 
@@ -62,6 +63,10 @@ class LoginController extends BaseController
 
     private function homeFor(string $role): string
     {
-        return $role === 'admin' ? '/admin' : '/counter';
+        return match ($role) {
+            'admin' => '/admin',
+            'exit_operator' => '/exit',
+            default => '/counter',
+        };
     }
 }

@@ -26,7 +26,7 @@
           <div class="stat-sub">Across <?= esc($totalCompanies) ?> companies (2 reps each)</div>
         </div>
         <div class="stat-tile accent-gold">
-          <div class="stat-label">Votes Cast</div>
+          <div class="stat-label">Slips Issued</div>
           <div class="stat-value"><?= esc($votesCast) ?></div>
           <div class="stat-sub">Voting slips issued so far</div>
         </div>
@@ -39,6 +39,19 @@
           <div class="stat-label">Companies Pending</div>
           <div class="stat-value"><?= esc($pendingCompaniesCount) ?></div>
           <div class="stat-sub">Have not voted yet</div>
+        </div>
+      </div>
+
+      <div class="card mb-24" style="border-top: 3px solid #6b46c1;">
+        <div class="flex-between">
+          <div>
+            <div class="stat-label">Confirmed at EVM (slip surrendered &amp; scanned at exit desk)</div>
+            <div class="stat-value"><?= esc($evmConfirmed) ?> <span class="text-muted" style="font-size:16px; font-weight:600;">/ <?= esc($votesCast) ?> slips issued</span></div>
+          </div>
+          <div style="text-align:right;">
+            <div class="stat-value" style="color:#6b46c1;"><?= esc($evmTurnoutPct) ?>%</div>
+            <div class="stat-sub">EVM turnout</div>
+          </div>
         </div>
       </div>
 

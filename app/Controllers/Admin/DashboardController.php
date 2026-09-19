@@ -25,6 +25,14 @@ class DashboardController extends BaseController
         $votedCompanies = count($votedCompanyIds);
         $votesCast = $votes->where('status', 'issued')->countAllResults();
 
+        // "Issued" (a slip was printed) is not the same as "cast" (the
+        // member actually surrendered it at the EVM exit desk) — see
+        // AddEvmVoteConfirmationTracking. This is the second, harder
+        // number: how many issued slips actually turned into a confirmed
+        // ballot.
+        $evmConfirmed = $votes->where('status', 'issued')->where('voted_at IS NOT NULL')->countAllResults();
+        $evmTurnoutPct = $votesCast ? round(($evmConfirmed / $votesCast) * 100) : 0;
+
         $perCounter = array_fill(1, 10, 0);
         $rows = $votes->select('counter_no, COUNT(*) as cnt')
             ->where('status', 'issued')
@@ -51,6 +59,8 @@ class DashboardController extends BaseController
             'totalMembers' => $totalMembers,
             'totalCompanies' => $totalCompanies,
             'votesCast' => $votesCast,
+            'evmConfirmed' => $evmConfirmed,
+            'evmTurnoutPct' => $evmTurnoutPct,
             'votedCompanies' => $votedCompanies,
             'pendingCompaniesCount' => $totalCompanies - $votedCompanies,
             'turnoutPct' => $totalCompanies ? round(($votedCompanies / $totalCompanies) * 100) : 0,

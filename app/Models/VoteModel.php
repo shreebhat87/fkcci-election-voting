@@ -14,6 +14,7 @@ class VoteModel extends Model
     protected $allowedFields = [
         'member_id', 'company_id', 'counter_no', 'serial_no', 'status',
         'void_reason', 'issued_by', 'voided_by', 'issued_at', 'voided_at',
+        'voted_at', 'voted_by', 'exit_desk_no',
     ];
     protected $useTimestamps = false; // we track issued_at/voided_at explicitly
 
@@ -38,6 +39,60 @@ class VoteModel extends Model
             ->join('companies', 'companies.id = votes.company_id')
             ->where('votes.serial_no', trim($serial))
             ->first();
+    }
+
+    /**
+     * The slip's QR encodes the public verify URL (…/verify/{serial}), not
+     * the bare serial — the exit-desk camera scanner decodes whatever text
+     * is in the QR, which is normally that full URL, but could also be a
+     * bare serial (typed manually as a fallback, or read by a generic
+     * barcode app instead of this screen). Pulls the serial out of either.
+     */
+    public function serialFromScannedPayload(string $payload): ?string
+    {
+        if (preg_match('/(FKCCI-\d{4}-\d{6})/', trim($payload), $m)) {
+            return $m[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Confirm a member actually cast their ballot at the EVM, from the
+     * slip they surrender afterwards. Returns one of:
+     *   ['status' => 'not_found']
+     *   ['status' => 'void', 'vote' => [...]]           // slip was voided, must not be accepted
+     *   ['status' => 'already_marked', 'vote' => [...]] // scanned twice
+     *   ['status' => 'confirmed', 'vote' => [...]]
+     *
+     * Unlike issue(), this needs no duplicate-insert race handling: there's
+     * no uniqueness constraint in play, so a slip scanned twice within
+     * milliseconds at worst just overwrites voted_at/voted_by/exit_desk_no
+     * with a near-identical value — harmless, and the already_marked check
+     * above catches the ordinary (non-racing) double-scan case anyway.
+     */
+    public function markVoted(string $payload, int $userId, int $exitDeskNo): array
+    {
+        $serial = $this->serialFromScannedPayload($payload);
+        $vote = $serial ? $this->findBySerial($serial) : null;
+
+        if (! $vote) {
+            return ['status' => 'not_found'];
+        }
+        if ($vote['status'] === 'void') {
+            return ['status' => 'void', 'vote' => $vote];
+        }
+        if ($vote['voted_at']) {
+            return ['status' => 'already_marked', 'vote' => $vote];
+        }
+
+        $this->update($vote['id'], [
+            'voted_at' => date('Y-m-d H:i:s'),
+            'voted_by' => $userId,
+            'exit_desk_no' => $exitDeskNo,
+        ]);
+
+        return ['status' => 'confirmed', 'vote' => $this->findBySerial($serial)];
     }
 
     /**

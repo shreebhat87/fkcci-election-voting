@@ -14,6 +14,7 @@ class VoterLogController extends BaseController
         $q = trim((string) $this->request->getGet('q'));
         $counter = $this->request->getGet('counter');
         $status = $this->request->getGet('status');
+        $evm = $this->request->getGet('evm');
 
         $builder = $votes->select('votes.*, members.name as member_name, members.member_id as member_code, companies.name as company_name')
             ->join('members', 'members.id = votes.member_id')
@@ -25,6 +26,11 @@ class VoterLogController extends BaseController
         }
         if ($status !== null && $status !== '') {
             $builder->where('votes.status', $status);
+        }
+        if ($evm === 'voted') {
+            $builder->where('votes.voted_at IS NOT NULL');
+        } elseif ($evm === 'not_voted') {
+            $builder->where('votes.voted_at IS NULL');
         }
         if ($q !== '') {
             $builder->groupStart()
@@ -41,6 +47,7 @@ class VoterLogController extends BaseController
             'q' => $q,
             'counter' => $counter,
             'status' => $status,
+            'evm' => $evm,
         ]);
     }
 
@@ -66,17 +73,18 @@ class VoterLogController extends BaseController
         $votes = model(VoteModel::class)
             ->select('votes.serial_no, members.member_id as member_code, members.name as member_name,
                     companies.name as company_name, members.designation, votes.counter_no,
-                    votes.issued_at, votes.status, votes.void_reason')
+                    votes.issued_at, votes.status, votes.void_reason, votes.voted_at, votes.exit_desk_no')
             ->join('members', 'members.id = votes.member_id')
             ->join('companies', 'companies.id = votes.company_id')
             ->orderBy('votes.issued_at', 'DESC')
             ->findAll();
 
-        $csv = "Slip No,Member ID,Name,Company,Designation,Counter,Issued At,Status,Void Reason\n";
+        $csv = "Slip No,Member ID,Name,Company,Designation,Counter,Issued At,Status,Void Reason,EVM Confirmed At,Exit Desk\n";
         foreach ($votes as $v) {
             $fields = [
                 $v['serial_no'], $v['member_code'], $v['member_name'], $v['company_name'],
                 $v['designation'], $v['counter_no'], $v['issued_at'], $v['status'], $v['void_reason'],
+                $v['voted_at'], $v['exit_desk_no'],
             ];
             $csv .= implode(',', array_map(static function ($f) {
                 return '"' . str_replace('"', '""', (string) $f) . '"';

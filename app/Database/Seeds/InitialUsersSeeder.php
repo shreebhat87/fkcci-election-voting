@@ -6,14 +6,23 @@ use CodeIgniter\CLI\CLI;
 use CodeIgniter\Database\Seeder;
 
 /**
- * Seeds one admin account and one operator account per counter (1-10).
- * Passwords/PINs are randomly generated and printed once to the console —
- * nothing predictable ships in the repo. Re-running this seeder is safe:
- * it skips any username that already exists rather than duplicating or
- * silently resetting credentials.
+ * Seeds one admin account, one operator account per counter (1-10), and
+ * one exit-desk operator account per EVM confirmation desk. Passwords/
+ * PINs are randomly generated and printed once to the console — nothing
+ * predictable ships in the repo. Re-running this seeder is safe: it skips
+ * any username that already exists rather than duplicating or silently
+ * resetting credentials.
  */
 class InitialUsersSeeder extends Seeder
 {
+    /**
+     * Nothing in the source material fixes how many exit desks there
+     * are (unlike the 10 issuing counters, which is a hard given) — this
+     * is a starting assumption. Adjust and rerun `spark db:seed
+     * InitialUsersSeeder` to add more; existing accounts are left alone.
+     */
+    private const EXIT_DESK_COUNT = 4;
+
     public function run()
     {
         $created = [];
@@ -37,6 +46,18 @@ class InitialUsersSeeder extends Seeder
             );
         }
 
+        for ($desk = 1; $desk <= self::EXIT_DESK_COUNT; $desk++) {
+            $created[] = $this->createUserIfMissing(
+                username: "exit{$desk}",
+                role: 'exit_operator',
+                name: "Exit Desk {$desk} Operator",
+                assignedCounter: null,
+                passwordLength: 6,
+                numericOnly: true,
+                assignedExitDesk: $desk
+            );
+        }
+
         CLI::newLine();
         CLI::write('=== Generated credentials (shown once — store these securely) ===', 'yellow');
         foreach (array_filter($created) as $row) {
@@ -52,7 +73,8 @@ class InitialUsersSeeder extends Seeder
         string $name,
         ?int $assignedCounter,
         int $passwordLength,
-        bool $numericOnly = false
+        bool $numericOnly = false,
+        ?int $assignedExitDesk = null
     ): ?array {
         $exists = $this->db->table('users')->where('username', $username)->get()->getRow();
         if ($exists) {
@@ -71,6 +93,7 @@ class InitialUsersSeeder extends Seeder
             'role' => $role,
             'name' => $name,
             'assigned_counter' => $assignedCounter,
+            'assigned_exit_desk' => $assignedExitDesk,
             'active' => 1,
             'created_at' => date('Y-m-d H:i:s'),
         ]);

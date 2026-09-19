@@ -84,7 +84,10 @@ php_errors.log
 #-------------------------
 # Composer
 #-------------------------
-vendor/
+# Anchored to repo root — an unanchored "vendor/" would also match
+# public/assets/js/vendor/, which holds a deliberately committed
+# third-party JS file (jsQR) and must not be ignored.
+/vendor/
 
 #-------------------------
 # IDE / Development Files
