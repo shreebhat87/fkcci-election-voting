@@ -11,6 +11,7 @@
       <a href="<?= base_url('admin') ?>" class="<?= ($active ?? '') === 'dashboard' ? 'active' : '' ?>">Dashboard</a>
       <a href="<?= base_url('admin/master-data') ?>" class="<?= ($active ?? '') === 'master-data' ? 'active' : '' ?>">Master Data</a>
       <a href="<?= base_url('admin/voter-log') ?>" class="<?= ($active ?? '') === 'voter-log' ? 'active' : '' ?>">Voter Log</a>
+      <a href="<?= base_url('admin/membership') ?>" class="<?= ($active ?? '') === 'membership' ? 'active' : '' ?>">Membership</a>
       <a href="<?= base_url('exit') ?>" target="_blank" rel="noopener">Exit Scan ↗</a>
     </nav>
     <div class="session-chip">

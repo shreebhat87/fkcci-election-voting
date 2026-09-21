@@ -15,7 +15,10 @@ class DashboardController extends BaseController
         $members = model(MemberModel::class);
         $votes = model(VoteModel::class);
 
-        $totalMembers = $members->countAllResults();
+        // A company can carry up to 3 representatives via membership
+        // self-registration, but only 2 are ever eligible to vote — count
+        // eligible reps here, not every representative on file.
+        $totalMembers = $members->where('is_election_rep', 1)->countAllResults();
         $totalCompanies = $companies->countAllResults();
 
         $votedCompanyIds = array_column(

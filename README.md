@@ -1,11 +1,21 @@
-# FKCCI Election Voting Slip System
+# FKCCI Membership & Election Voting System
 
 CodeIgniter 4 + MySQL application for the Federation of Karnataka Chambers of
-Commerce & Industry (FKCCI): RFID-based voting slip issuance at 10 simultaneous
-election-day counters, with one-vote-per-company enforcement, QR slip
-verification, exit-desk EVM vote confirmation (camera QR scan of the
-surrendered slip), and admin tools for master data, the voter log, and
-turnout.
+Commerce & Industry (FKCCI). Two connected halves:
+
+- **Membership management** — online self-registration against the paper
+  "Application for Membership" form, online payment, a two-stage approval
+  workflow (Membership Committee → Managing Committee), RFID tag issuance,
+  and PVC ID card printing.
+- **Election voting** — RFID-based voting slip issuance at 10 simultaneous
+  election-day counters, one-vote-per-company enforcement, QR slip
+  verification, and exit-desk EVM vote confirmation (camera QR scan of the
+  surrendered slip).
+
+A company's approved, RFID-tagged representatives feed straight into the
+election roll — membership management is the roll's source of truth
+alongside the older Excel/Zoho import path (see "Membership management"
+below).
 
 An HTML prototype of the full flow lives in [`prototype/`](prototype/) — see
 its README for the confirmed scope and UX decisions this build implements.
@@ -97,13 +107,18 @@ this build actually implements — read the prototype README first for *why*.
 Three roles, one `users` table, session-based auth (no third-party auth
 package — the surface is deliberately small):
 
-- **admin** — full access: master data import, voter log, dashboard, and
-  a backup exit-scan station.
+- **admin** — full access: master data import, membership applications,
+  voter log, dashboard, and a backup exit-scan station.
 - **operator** — assigned to exactly one counter (`users.assigned_counter`),
   can only use the counter scan/issue screen and reprint slips.
 - **exit_operator** — assigned to exactly one exit desk
   (`users.assigned_exit_desk`), can only use the exit-desk QR scan screen
   (`/exit`) to confirm EVM votes.
+
+Membership self-registration (`/membership/...`) is public, no auth —
+applicants are identified only by a generated `application_ref`, the same
+"no login, just a reference/serial" pattern the election side uses for
+voting slips.
 
 ### Hardware integration
 
@@ -123,6 +138,95 @@ package — the surface is deliberately small):
   roll (`@page { size: 80mm auto; }`, slip width capped at 74mm, QR sized
   for a small paper width) — for a different roll width, adjust those two
   numbers.
+
+### Membership management
+
+The paper "Application for Membership" form and the sample PVC ID card
+(FKCCI logo, bilingual org name, category badge + membership no.,
+company/representative name, nature-of-business line, President/Secretary
+General signature lines) are what this whole module is built against —
+every field on the online form and every line on the printed card maps
+directly to one of those two source documents.
+
+**1. Public self-registration (`/membership/apply`)** — one page, all of
+Section 1–8 of the paper form: organisation details, nature of business
+(with Small/Large-Medium scale where it applies), 2 or 3 representatives
+(the form's own rule: small category gets 2, Large/Medium and Association/
+Chamber members get up to 3 — enforced both in the UI and server-side)
+with photo upload, financial/registration numbers (GSTIN, PAN, MSME,
+IE Code, etc.), and the same 5 supporting-document uploads the form lists
+("as applicable"). The fee due is computed server-side by
+`FeeScheduleService`, which encodes the exact printed fee table (Small/
+Large × Manufacture/Trade/Service/Profession/District/Association ×
+Ordinary/Patron, plus flat Gold/Platinum patron tiers) rather than
+recomputing GST from scratch — every figure is copied verbatim from the
+form, since these are real money amounts.
+
+**2. Payment (`/membership/pay/{ref}`)** — same simulated-until-configured
+pattern as the Zoho integration (see below): `PaymentGatewayInterface` +
+`PaymentGatewayFactory`, with `SimulatedPaymentGateway` (no network call,
+marks paid immediately) as the default and `LiveRazorpayGateway` written
+against Razorpay's documented Orders API but **never run against a real
+Razorpay account** — there were no credentials available while building
+this. To go live: set `paymentGateway.driver = live` and
+`paymentGateway.razorpayKeyId`/`razorpayKeySecret` in `.env`, and wire
+Razorpay's Checkout.js into `app/Views/membership/pay.php` (see that
+file's comment). Nothing outside `PaymentGatewayFactory` needs to change.
+
+**3. Two-stage approval (`/admin/membership`)** — mirrors the paper form's
+own "For Office Use Only" block exactly: Present to Membership Committee →
+Recommend/Reject → Present to Managing Committee → Approve/Reject. Each
+stage records who acted and when (`membership_applications` table). A
+rejected application stops there; an approved one moves to:
+
+**4. Registration & RFID issuance** — "Entered in Membership Register...
+Identity Card No." from the paper form becomes one admin action
+(`POST /admin/membership/{id}/register`) that assigns the company's
+`membership_no` (e.g. `SSO-1326` — see the numbering scheme note below)
+and each representative's `member_id` (`{membership_no}-A`/`-B`/`-C`) in
+one shot. RFID tags are assigned **separately, per representative**
+(tap-to-assign, same keyboard-wedge pattern as the election's RFID
+reader), since members collect their physical card individually and that
+may not all happen the same day as registration.
+
+**5. PVC ID card (`/admin/membership/card/{member_id}`)** — printable at
+the standard CR-80 size (86mm × 54mm), styled after the sample card:
+logo, bilingual org name, category badge + membership no., company name,
+representative name, nature-of-business/scale line, and blank signature
+lines for the Secretary General, President (names configured in
+`app/Config/Membership.php` — update when office bearers change), and the
+member themself. Browser `window.print()` to a PVC card printer, same
+no-SDK approach as the election's thermal slip — only becomes available
+once a representative has both a `member_id` and an RFID tag.
+
+**Data model decisions worth knowing:**
+
+- `companies` grew the full organisation profile (address, nature of
+  business, financials, registration numbers) rather than a new table,
+  since it's already the entity the election system uses — membership is
+  now this app's source of truth for that data, not a separate system
+  bolted on the side.
+- Workflow state lives in a separate `membership_applications` table, not
+  on `companies` — an application is a point-in-time process with its own
+  actors/timestamps; `companies` is the durable record. `companies.membership_status`
+  defaults `'active'` so every company row from before this feature
+  (Excel/Zoho import) is unaffected.
+- `members.member_id`/`rfid_tag` are nullable: a representative is
+  captured at *application* time (name, designation, photo) but only
+  numbered/tagged at *approval*, matching the paper form's own sequence.
+  The Excel/Zoho import path still guarantees both are non-empty itself
+  before ever inserting — this only widens what self-registration is
+  allowed to leave blank initially.
+- `members.is_election_rep` caps voting at 2 representatives per company
+  regardless of how many the membership carries (associations/large-scale
+  members may register up to 3) — `MemberModel::findByRfid()` (the hot
+  path every counter scan hits) filters on it, so a 3rd representative's
+  tag can never cast the company's one vote in place of a designated rep.
+- `companies.membership_no`'s format (scale-initial + nature-initial +
+  category-initial + sequence, e.g. "SSO-1326" = Small+Service+Ordinary)
+  is **inferred from the one sample card available**, not confirmed
+  against FKCCI's real numbering register — same caveat as the Zoho
+  field-name mapping below. See `FeeScheduleService::prefixFor()`.
 
 ### Core flow (`/counter`)
 
@@ -255,9 +359,15 @@ step.
 
 - `prototype/` — the static HTML/JS prototype (kept for reference and
   side-by-side UX comparison; not served by the app).
-- `app/Controllers/Counter`, `app/Controllers/Exit`, `app/Controllers/Admin`,
-  `app/Controllers/Auth` — route handlers by area.
+- `app/Controllers/Counter`, `app/Controllers/Exit`, `app/Controllers/Membership`,
+  `app/Controllers/Admin`, `app/Controllers/Auth` — route handlers by area.
+- `app/Libraries/Membership`, `app/Libraries/Payment`, `app/Libraries/Zoho` —
+  the fee schedule and the two swappable-integration pairs
+  (interface + factory + simulated/live implementations).
 - `app/Database/Migrations` — schema. `app/Database/Seeds` — initial users.
 - `public/assets/js/vendor/` — vendored third-party JS (currently just
   jsQR, for exit-desk camera QR scanning) — no CDN dependency, no build step.
-- `writable/uploads/photos/` — uploaded member photos (gitignored).
+- `writable/uploads/photos/` — uploaded member/representative photos
+  (gitignored). `writable/uploads/membership_docs/{application_id}/` —
+  uploaded supporting documents, admin-only download (gitignored, never
+  served publicly, unlike photos).

@@ -31,6 +31,38 @@ if (! function_exists('formatIST')) {
     }
 }
 
+if (! function_exists('statusBadge')) {
+    /** Renders a membership_applications.status value as a colored badge span. */
+    function statusBadge(string $status): string
+    {
+        $labels = [
+            'awaiting_payment' => 'Awaiting Payment',
+            'submitted' => 'Submitted',
+            'committee_review' => 'At Committee',
+            'committee_recommended' => 'Recommended',
+            'committee_rejected' => 'Rejected (Committee)',
+            'managing_committee_review' => 'At Managing Cmte.',
+            'approved' => 'Approved',
+            'rejected' => 'Rejected',
+        ];
+        $classes = [
+            'awaiting_payment' => 'badge-neutral',
+            'submitted' => 'badge-neutral',
+            'committee_review' => 'badge-warning',
+            'committee_recommended' => 'badge-warning',
+            'committee_rejected' => 'badge-danger',
+            'managing_committee_review' => 'badge-warning',
+            'approved' => 'badge-success',
+            'rejected' => 'badge-danger',
+        ];
+
+        $label = $labels[$status] ?? $status;
+        $class = $classes[$status] ?? 'badge-neutral';
+
+        return '<span class="badge ' . $class . '">' . esc($label) . '</span>';
+    }
+}
+
 if (! function_exists('timeAgo')) {
     function timeAgo(string $datetime): string
     {

@@ -83,3 +83,16 @@
 # zoho.accountsDomain = 'https://accounts.zoho.in'
 # zoho.apiDomain = 'https://www.zohoapis.in'
 # zoho.module = Members
+
+#--------------------------------------------------------------------
+# PAYMENT GATEWAY (membership application fees)
+#--------------------------------------------------------------------
+
+# Leave as 'simulated' (no real money moves, no network call) until real
+# credentials below are filled in — see app/Config/PaymentGateway.php
+# before switching this to 'live'. Never tested against a real Razorpay
+# account.
+# paymentGateway.driver = simulated
+
+# paymentGateway.razorpayKeyId =
+# paymentGateway.razorpayKeySecret =

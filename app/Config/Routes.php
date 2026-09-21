@@ -7,9 +7,12 @@ use App\Controllers\Counter\SlipController;
 use App\Controllers\Counter\VerifyController;
 use App\Controllers\Counter\PhotoController;
 use App\Controllers\Exit\ExitScanController;
+use App\Controllers\Membership\MembershipController;
 use App\Controllers\Admin\DashboardController;
 use App\Controllers\Admin\MasterDataController;
 use App\Controllers\Admin\VoterLogController;
+use App\Controllers\Admin\MembershipAdminController;
+use App\Controllers\Admin\MembershipCardController;
 
 /** @var RouteCollection $routes */
 
@@ -33,6 +36,16 @@ $routes->get('logout', [LoginController::class, 'logout']);
 // ---------- Public QR verification + photo serving (no auth) ----------
 $routes->get('verify/(:segment)', [VerifyController::class, 'show']);
 $routes->get('photos/(:segment)', [PhotoController::class, 'show']);
+
+// ---------- Public membership self-registration (no auth) ----------
+$routes->group('membership', static function ($routes) {
+    $routes->get('apply', [MembershipController::class, 'apply']);
+    $routes->post('apply', [MembershipController::class, 'submit']);
+    $routes->get('pay/(:segment)', [MembershipController::class, 'pay']);
+    $routes->post('pay/(:segment)/confirm', [MembershipController::class, 'confirmPayment']);
+    $routes->get('status', [MembershipController::class, 'statusLookup']);
+    $routes->get('status/(:segment)', [MembershipController::class, 'status']);
+});
 
 // ---------- Counter operator ----------
 $routes->group('counter', ['filter' => ['auth', 'role:operator,admin']], static function ($routes) {
@@ -73,4 +86,18 @@ $routes->group('admin', ['filter' => ['auth', 'role:admin']], static function ($
     $routes->get('voter-log', [VoterLogController::class, 'index']);
     $routes->post('voter-log/void/(:segment)', [VoterLogController::class, 'void']);
     $routes->get('voter-log/export', [VoterLogController::class, 'export']);
+
+    // ---- Membership management ----
+    $routes->get('membership', [MembershipAdminController::class, 'index']);
+    $routes->get('membership/document/(:num)', [MembershipAdminController::class, 'downloadDocument']);
+    $routes->get('membership/card/(:segment)', [MembershipCardController::class, 'show']);
+    $routes->get('membership/(:num)', [MembershipAdminController::class, 'show']);
+    $routes->post('membership/(:num)/committee/present', [MembershipAdminController::class, 'presentToCommittee']);
+    $routes->post('membership/(:num)/committee/recommend', [MembershipAdminController::class, 'recommendByCommittee']);
+    $routes->post('membership/(:num)/committee/reject', [MembershipAdminController::class, 'rejectByCommittee']);
+    $routes->post('membership/(:num)/managing/present', [MembershipAdminController::class, 'presentToManagingCommittee']);
+    $routes->post('membership/(:num)/managing/approve', [MembershipAdminController::class, 'approveByManagingCommittee']);
+    $routes->post('membership/(:num)/managing/reject', [MembershipAdminController::class, 'rejectByManagingCommittee']);
+    $routes->post('membership/(:num)/register', [MembershipAdminController::class, 'register']);
+    $routes->post('membership/(:num)/rep/(:num)/rfid', [MembershipAdminController::class, 'assignRfid']);
 });
